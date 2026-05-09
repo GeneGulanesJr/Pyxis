@@ -30,7 +30,9 @@ pistats/
 
 ## Segment Definitions
 
-21 segments + "Free" (dim). Each segment has a fixed ANSI color. Segments are attributed by walking the branch and classifying entries.
+20 segments + "Free" (dim) + "Collapsed" (display-only). Each segment has a fixed ANSI color. Segments are attributed by walking the branch and classifying entries.
+
+Note: Cache Hit is NOT a separate segment — it's a percentage shown in the info line only. The API gives `usage.cacheRead` as a total, not per-segment, so it can't be attributed to specific segments in the bar.
 
 ### Color Palette
 
@@ -54,11 +56,11 @@ Each segment gets a visually distinct ANSI 256-color code:
 | 14 | User Messages | 153 | #afd7ff | UserMessage entries |
 | 15 | Assistant Text | 183 | #d7d7ff | TextContent blocks in assistant messages |
 | 16 | Images | 204 | #ff5f5f | Image attachments in user messages |
-| 17 | Compaction | 179 | #d7afd7 | CompactionSummaryMessage entries |
+| 17 | Compaction | 179 | #d7afd7 | Compaction entries (represents summarized-away context) |
 | 18 | Branch Summary | 188 | #d7afaf | BranchSummaryMessage entries |
 | 19 | Extension Msgs | 216 | #ffd7af | CustomMessage entries |
-| 20 | Cache Hit | 51 | #00ffff | Overlaid pattern — usage.cacheRead (not additive) |
 | — | Free | 235 | #585858 | Remaining context window |
+| — | Collapsed | 242 | #6c6c6c | Display-only bucket for segments too small to show on the bar |
 
 ### Classification Logic
 
@@ -116,7 +118,9 @@ entry.type === "message":
 entry.type === "compaction":
   → segment 17 (Compaction)
   Note: compaction entries have .summary (text), .tokensBefore (number), and .firstKeptEntryId.
-  Use .tokensBefore as the token count for this entry (not content length estimation).
+  Use .tokensBefore as the token count. This represents the historical context that was
+  summarized away — the compacted entries are no longer on the active branch, so .tokensBefore
+  accounts for the context "ghost" that the compaction summary replaced.
 ```
 
 ### Token Estimation & Calibration
@@ -163,11 +167,13 @@ Line 2: ↑24k ↓3k $0.042 · cache:62% · turn 5
 
 ### Smart Bar Segments
 
-The bar shows at most 10 segments: the top 9 by size plus "Free". Smaller segments are folded into "Other Tools" (segment 11). When the bar width is narrow (< 60 chars), fold to top 6 + Free.
+The bar shows at most 10 segments: the top 9 by size plus "Free". Segments that are too small to render are not folded into "Other Tools" — they go into a display-only **"Collapsed"** bucket (ANSI 242) that represents "too small to see individually." This keeps the semantic meaning of "Other Tools" (unclassified tool results) separate from "tiny segments merged for display."
+
+When the bar width is narrow (< 60 chars), show top 6 segments + Free.
 
 **Minimum widths:**
 - Any visible segment: minimum 1 character wide
-- If bar would overflow, fold smallest segments into "Other"
+- Collapsed segments merged into a single block with their combined token count tracked internally
 
 ### Rendering Trigger
 
@@ -268,7 +274,8 @@ pi.on("session_shutdown", (event, ctx) => { /* update ended_at */ });
 
 // Per-turn tracking
 pi.on("turn_end", (event, ctx) => { /* compute attribution, write to DB, update bar */ });
-pi.on("message_end", (event, ctx) => { /* update bar (throttled) */ });
+pi.on("message_update", (event, ctx) => { /* update bar (throttled, max once/sec) */ });
+pi.on("message_end", (event, ctx) => { /* final render + DB write */ });
 
 // Model change (may change context window size)
 pi.on("model_select", (event, ctx) => { /* update context window, re-render bar */ });
