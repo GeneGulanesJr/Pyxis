@@ -23,11 +23,78 @@ function dim(text: string): string {
   return `\x1b[2m${text}\x1b[0m`;
 }
 
+/** ANSI bold bright white text */
+function bold(text: string): string {
+  return `\x1b[1m\x1b[37m${text}\x1b[0m`;
+}
+
+/** Overlay centered text on a bar string */
+function overlayText(bar: string, text: string, width: number): string {
+  const textLen = text.length;
+  if (textLen >= width - 4) return bar; // Not enough room
+  const start = Math.floor((width - textLen) / 2);
+  // Strip ANSI codes to get visible chars, then rebuild
+  const visible = bar.replace(/\x1b\[[0-9;]*m/g, "");
+  // Build: bar left | centered text | bar right
+  // We need to split the visible string and re-apply coloring
+  const visibleLeft = visible.slice(0, start);
+  const visibleRight = visible.slice(start + textLen);
+  // Find the ANSI sequences at the split points
+  let result = "";
+  let vi = 0; // visible index
+  let bi = 0; // bar (with ANSI) index
+  let inBar = true;
+  // Reconstruct left part with its ANSI codes
+  let leftBar = "";
+  let currentAnsi = "";
+  let visibleCounted = 0;
+  while (bi < bar.length && visibleCounted < start) {
+    if (bar[bi] === "\x1b") {
+      // ANSI escape sequence
+      const end = bar.indexOf("m", bi) + 1;
+      currentAnsi = bar.slice(bi, end);
+      leftBar += currentAnsi;
+      bi = end;
+    } else {
+      leftBar += bar[bi];
+      visibleCounted++;
+      bi++;
+    }
+  }
+  // Close any open ANSI on left
+  leftBar += "\x1b[0m";
+
+  let rightBar = "";
+  visibleCounted = 0;
+  let targetVisible = start + textLen;
+  // Skip characters up to targetVisible
+  bi = 0;
+  let pendingAnsi = "";
+  visibleCounted = 0;
+  while (bi < bar.length) {
+    if (bar[bi] === "\x1b") {
+      const end = bar.indexOf("m", bi) + 1;
+      pendingAnsi = bar.slice(bi, end);
+      bi = end;
+    } else {
+      if (visibleCounted >= targetVisible) break;
+      visibleCounted++;
+      bi++;
+    }
+  }
+  // rightBar starts with whatever ANSI was pending, then rest of bar
+  rightBar = pendingAnsi + bar.slice(bi);
+
+  return leftBar + bold(text) + rightBar;
+}
+
 /** Render the color-coded bar */
 export function renderBar(
   segments: SegmentTokens[],
   freeTokens: number,
   width: number,
+  totalInput: number = 0,
+  contextWindow: number = 0,
 ): string[] {
   if (width < MIN_BAR_WIDTH) {
     return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
@@ -92,7 +159,19 @@ export function renderBar(
     barParts.push(ansi256(parts[i].ansi, fillChar.repeat(charWidth)));
   }
 
-  return [barParts.join("")];
+  const rawBar = barParts.join("");
+
+  // Overlay usage text centered inside the bar if wide enough
+  const minOverlayWidth = 30; // Need at least 30 chars to show "Xk/Yk"
+  if (totalInput > 0 && contextWindow > 0 && width >= minOverlayWidth) {
+    const pct = Math.round((totalInput / contextWindow) * 100);
+    const label = `${formatTokens(totalInput)}/${formatTokens(contextWindow)} ${pct}%`;
+    if (label.length + 4 <= width) {
+      return [overlayText(rawBar, label, width)];
+    }
+  }
+
+  return [rawBar];
 }
 
 /** Render the compact info line */

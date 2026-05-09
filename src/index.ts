@@ -83,7 +83,7 @@ export default function (pi: ExtensionAPI) {
             if (!currentAttribution) {
               return [theme.dim("PiStats: no data yet")];
             }
-            const bar = renderBar(currentAttribution.segments, currentAttribution.freeTokens, w);
+            const bar = renderBar(currentAttribution.segments, currentAttribution.freeTokens, w, currentAttribution.totalInput, currentAttribution.contextWindow);
             const info = renderInfoLine(
               currentAttribution.totalInput,
               currentAttribution.totalOutput,
