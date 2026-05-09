@@ -1,0 +1,159 @@
+/**
+ * PiStats bar renderer.
+ * Renders the color-coded stats bar and info line for ctx.ui.setFooter().
+ */
+
+import { SEGMENTS, SEGMENT_FREE, SEGMENT_COLLAPSED, SEGMENT_MAP } from "./segments.js";
+import type { SegmentId } from "./segments.js";
+import type { SegmentTokens } from "./attributor.js";
+import { formatTokens, formatCost } from "./format.js";
+
+const MIN_BAR_WIDTH = 40;
+const MAX_VISIBLE_SEGMENTS = 10;
+const NARROW_MAX_SEGMENTS = 7;
+const COLLAPSED_MIN_WIDTH = 60;
+
+/** ANSI 256-color foreground code */
+function ansi256(code: number, text: string): string {
+  return `\x1b[38;5;${code}m${text}\x1b[0m`;
+}
+
+/** ANSI dim text */
+function dim(text: string): string {
+  return `\x1b[2m${text}\x1b[0m`;
+}
+
+/** Render the color-coded bar */
+export function renderBar(
+  segments: SegmentTokens[],
+  freeTokens: number,
+  width: number,
+): string[] {
+  if (width < MIN_BAR_WIDTH) {
+    return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
+  }
+
+  const maxVisible = width < COLLAPSED_MIN_WIDTH ? NARROW_MAX_SEGMENTS : MAX_VISIBLE_SEGMENTS;
+
+  // Sort segments by tokens (descending), keep top N-1, collapse rest
+  const sorted = [...segments]
+    .filter(s => s.tokens > 0)
+    .sort((a, b) => b.tokens - a.tokens);
+
+  const topCount = maxVisible - 1;
+  const top = sorted.slice(0, topCount);
+  const collapsedEntries = sorted.slice(topCount);
+
+  const collapsedTokens = collapsedEntries.reduce((sum, s) => sum + s.tokens, 0);
+
+  const totalTokens = segments.reduce((sum, s) => sum + s.tokens, 0) + freeTokens;
+  if (totalTokens === 0) {
+    return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
+  }
+
+  const parts: Array<{ id: string; tokens: number; ansi: number }> = [];
+
+  for (const s of top) {
+    const def = SEGMENT_MAP.get(s.segmentId as SegmentId);
+    if (def) {
+      parts.push({ id: s.segmentId, tokens: s.tokens, ansi: def.ansi });
+    }
+  }
+
+  if (collapsedTokens > 0) {
+    parts.push({ id: "collapsed", tokens: collapsedTokens, ansi: SEGMENT_COLLAPSED.ansi });
+  }
+
+  if (freeTokens > 0) {
+    parts.push({ id: "free", tokens: freeTokens, ansi: SEGMENT_FREE.ansi });
+  }
+
+  // Compute character widths
+  const barParts: string[] = [];
+  let remainingWidth = width;
+
+  for (let i = 0; i < parts.length; i++) {
+    const isLast = i === parts.length - 1;
+    const proportion = parts[i].tokens / totalTokens;
+    let charWidth: number;
+
+    if (isLast) {
+      charWidth = remainingWidth;
+    } else {
+      charWidth = Math.max(1, Math.round(proportion * width));
+    }
+
+    charWidth = Math.min(charWidth, remainingWidth);
+    remainingWidth -= charWidth;
+
+    if (charWidth <= 0) continue;
+
+    const fillChar = parts[i].id === "free" ? "░" : "█";
+    barParts.push(ansi256(parts[i].ansi, fillChar.repeat(charWidth)));
+  }
+
+  return [barParts.join("")];
+}
+
+/** Render the compact info line */
+export function renderInfoLine(
+  totalInput: number,
+  totalOutput: number,
+  totalCost: number,
+  cacheReadPct: number,
+  turnCount: number,
+  width: number,
+): string {
+  const up = `↑${formatTokens(totalInput)}`;
+  const down = `↓${formatTokens(totalOutput)}`;
+  const cost = formatCost(totalCost);
+  const cache = `cache:${Math.round(cacheReadPct)}%`;
+  const turn = `turn ${turnCount}`;
+
+  const left = `${up} ${down}`;
+  const right = `${cost} · ${cache} · ${turn}`;
+
+  // Calculate visible widths (excluding ANSI codes)
+  const leftVisible = left.length;
+  const rightVisible = right.length;
+  const padLen = Math.max(1, width - leftVisible - rightVisible);
+
+  return `${dim(left)}${" ".repeat(padLen)}${dim(right)}`;
+}
+
+/** Render the /pistats command output (legend + numbers) */
+export function renderLegend(segments: SegmentTokens[], freeTokens: number, contextWindow: number, totalInput: number): string[] {
+  const lines: string[] = [];
+  const maxNameLen = Math.max(...SEGMENTS.map(s => s.name.length), SEGMENT_FREE.name.length);
+  const allSegments = [...segments];
+  if (freeTokens > 0) {
+    allSegments.push({ segmentId: "free", name: SEGMENT_FREE.name, tokens: freeTokens, percentage: contextWindow > 0 ? (freeTokens / contextWindow) * 100 : 0 });
+  }
+
+  // Render 3 columns per row
+  const colWidth = 28;
+  const cols = 3;
+
+  let line = "";
+  for (const s of allSegments) {
+    const def = s.segmentId === "free" ? SEGMENT_FREE : SEGMENT_MAP.get(s.segmentId as SegmentId);
+    if (!def) continue;
+    const block = ansi256(def.ansi, "█");
+    const name = s.name.padEnd(maxNameLen);
+    const tokens = formatTokens(s.tokens).padStart(6);
+    const pct = `(${s.percentage.toFixed(1)}%)`.padStart(7);
+    const entry = `${block} ${name} ${tokens} ${pct}`;
+
+    if (line.length > 0 && line.length + entry.length + 2 > cols * colWidth) {
+      lines.push(line.trimEnd());
+      line = "";
+    }
+    line += entry + "  ";
+  }
+  if (line.trim()) lines.push(line.trimEnd());
+
+  lines.push("");
+  lines.push(dim(`                                     Total: ${formatTokens(totalInput)}/${formatTokens(contextWindow)}`));
+
+  return lines;
+}

@@ -1,0 +1,9 @@
+{
+  "name": "pistats",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "sql.js": "^1.11.0"
+  }
+}
