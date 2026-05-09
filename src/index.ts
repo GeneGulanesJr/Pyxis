@@ -83,6 +83,8 @@ export default function (pi: ExtensionAPI) {
               currentAttribution.cacheReadPct,
               currentAttribution.turnCount,
               w,
+              currentAttribution.contextWindow,
+              ctx.model?.id,
             );
             return [...bar, info];
           } catch (e) {
