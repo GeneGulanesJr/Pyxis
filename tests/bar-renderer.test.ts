@@ -17,20 +17,20 @@ describe("renderBar", () => {
       makeSegment("bash", 6000, 30),
       makeSegment("userMsgs", 4000, 20),
     ];
-    const result = renderBar(segments, 20000, 80, 20000, 200000);
+    const result = renderBar(segments, 20000, 80);
     assert.equal(result.length, 1);
     assert.ok(result[0].includes("█") || result[0].includes("░"));
   });
 
   it("renders free space when context is not full", () => {
     const segments = [makeSegment("system", 1000, 1)];
-    const result = renderBar(segments, 199000, 80, 1000, 200000);
+    const result = renderBar(segments, 199000, 80);
     assert.ok(result[0].length > 0);
   });
 
   it("handles full context window (no free space)", () => {
     const segments = [makeSegment("system", 200000, 100)];
-    const result = renderBar(segments, 0, 80, 200000, 200000);
+    const result = renderBar(segments, 0, 80);
     assert.ok(result[0].length > 0);
   });
 
@@ -40,30 +40,14 @@ describe("renderBar", () => {
       makeSegment("images", 100, 0.05),
       makeSegment("branchSummary", 50, 0.025),
     ];
-    const result = renderBar(segments, 9850, 80, 190150, 200000);
+    const result = renderBar(segments, 9850, 80);
     assert.ok(result[0].length > 0);
   });
 
   it("handles narrow terminal (below minimum)", () => {
     const segments = [makeSegment("system", 1000, 1)];
-    const result = renderBar(segments, 199000, 30, 1000, 200000);
+    const result = renderBar(segments, 199000, 30);
     assert.ok(result.length >= 1);
-  });
-
-  it("overlays usage text inside the bar when wide enough", () => {
-    const segments = [makeSegment("system", 2000, 10)];
-    const result = renderBar(segments, 198000, 80, 2000, 200000);
-    // Should contain percentage or usage text overlaid
-    const stripped = result[0].replace(/\x1b\[[0-9;]*m/g, "");
-    assert.ok(stripped.includes("1%") || stripped.includes("2.0k/200.0k"), "Should overlay usage text");
-  });
-
-  it("does not overlay text on narrow bars", () => {
-    const segments = [makeSegment("system", 2000, 10)];
-    const result = renderBar(segments, 198000, 29, 2000, 200000);
-    // Narrow bar should just be raw blocks without overlay
-    const stripped = result[0].replace(/\x1b\[[0-9;]*m/g, "");
-    assert.ok(!stripped.includes("2.0k"), "Narrow bar should not overlay text");
   });
 });
 

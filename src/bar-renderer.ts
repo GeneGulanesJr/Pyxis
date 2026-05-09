@@ -1,6 +1,8 @@
 /**
  * PiStats bar renderer.
  * Renders the color-coded stats bar and info line for ctx.ui.setFooter().
+ * Bar = pure colored blocks, no text inside.
+ * Info line = all text below the bar.
  */
 
 import { SEGMENTS, SEGMENT_FREE, SEGMENT_COLLAPSED, SEGMENT_MAP } from "./segments.js";
@@ -12,7 +14,6 @@ const MIN_BAR_WIDTH = 40;
 const MAX_VISIBLE_SEGMENTS = 10;
 const NARROW_MAX_SEGMENTS = 7;
 const COLLAPSED_MIN_WIDTH = 60;
-const MIN_BAR_LABEL_WIDTH = 24;
 
 /** ANSI 256-color foreground code */
 function ansi256(code: number, text: string): string {
@@ -24,13 +25,13 @@ function dim(text: string): string {
   return `\x1b[2m${text}\x1b[0m`;
 }
 
-/** Render the color-coded bar with optional centered label */
+/** Render the color-coded bar (pure blocks, no text) */
 export function renderBar(
   segments: SegmentTokens[],
   freeTokens: number,
   width: number,
-  totalInput: number = 0,
-  contextWindow: number = 0,
+  _totalInput: number = 0,
+  _contextWindow: number = 0,
 ): string[] {
   if (width < MIN_BAR_WIDTH) {
     return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
@@ -52,96 +53,48 @@ export function renderBar(
     return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
   }
 
-  // Build the visible-bar parts: each has {color, char, count}
-  const parts: Array<{ ansi: number; char: string; count: number }> = [];
+  const parts: Array<{ id: string; tokens: number; ansi: number; char: string }> = [];
 
   for (const s of top) {
     const def = SEGMENT_MAP.get(s.segmentId as SegmentId);
     if (def) {
-      parts.push({ ansi: def.ansi, char: "█", count: s.tokens });
+      parts.push({ id: s.segmentId, tokens: s.tokens, ansi: def.ansi, char: "█" });
     }
   }
   if (collapsedTokens > 0) {
-    parts.push({ ansi: SEGMENT_COLLAPSED.ansi, char: "█", count: collapsedTokens });
+    parts.push({ id: "collapsed", tokens: collapsedTokens, ansi: SEGMENT_COLLAPSED.ansi, char: "█" });
   }
   if (freeTokens > 0) {
-    parts.push({ ansi: SEGMENT_FREE.ansi, char: "░", count: freeTokens });
+    parts.push({ id: "free", tokens: freeTokens, ansi: SEGMENT_FREE.ansi, char: "░" });
   }
 
-  // Allocate character positions proportionally
-  const total = parts.reduce((sum, p) => sum + p.count, 0);
-  const allocated: Array<{ ansi: number; char: string; width: number }> = [];
-  let remaining = width;
+  // Render proportional blocks
+  const barParts: string[] = [];
+  let remainingWidth = width;
 
   for (let i = 0; i < parts.length; i++) {
     const isLast = i === parts.length - 1;
-    let w: number;
+    const proportion = parts[i].tokens / totalTokens;
+    let charWidth: number;
+
     if (isLast) {
-      w = remaining;
+      charWidth = remainingWidth;
     } else {
-      w = Math.max(1, Math.round((parts[i].count / total) * width));
-      w = Math.min(w, remaining);
+      charWidth = Math.max(1, Math.round(proportion * width));
     }
-    allocated.push({ ansi: parts[i].ansi, char: parts[i].char, width: w });
-    remaining -= w;
+
+    charWidth = Math.min(charWidth, remainingWidth);
+    remainingWidth -= charWidth;
+
+    if (charWidth <= 0) continue;
+
+    barParts.push(ansi256(parts[i].ansi, parts[i].char.repeat(charWidth)));
   }
 
-  // Build a flat array: position → {ansi, char}
-  const cells: Array<{ ansi: number; char: string }> = [];
-  for (const a of allocated) {
-    for (let i = 0; i < a.width; i++) {
-      cells.push({ ansi: a.ansi, char: a.char });
-    }
-  }
-  // Ensure cells length matches width (pad or trim)
-  while (cells.length < width) cells.push({ ansi: SEGMENT_FREE.ansi, char: "░" });
-  if (cells.length > width) cells.length = width;
-
-  // Compute label
-  let label = "";
-  if (totalInput > 0 && contextWindow > 0 && width >= MIN_BAR_LABEL_WIDTH) {
-    const pct = Math.round((totalInput / contextWindow) * 100);
-    const candidate = `[${formatTokens(totalInput)}/${formatTokens(contextWindow)} ${pct}%]`;
-    if (candidate.length <= width - 4) {
-      label = candidate;
-    }
-  }
-
-  // Stamp label into center of cells
-  if (label) {
-    const start = Math.floor((width - label.length) / 2);
-    for (let i = 0; i < label.length; i++) {
-      cells[start + i] = { ansi: -1, char: label[i] }; // -1 = label (bold white)
-    }
-  }
-
-  // Render cells to ANSI string
-  let result = "";
-  let currentAnsi = -2; // -2 = no current color
-  for (const cell of cells) {
-    if (cell.ansi !== currentAnsi) {
-      if (currentAnsi === -1) {
-        result += "\x1b[0m"; // end bold white
-      } else if (currentAnsi >= 0) {
-        result += "\x1b[0m"; // end 256-color
-      }
-      if (cell.ansi === -1) {
-        result += "\x1b[1m\x1b[37m"; // bold white
-      } else {
-        result += `\x1b[38;5;${cell.ansi}m`;
-      }
-      currentAnsi = cell.ansi;
-    }
-    result += cell.char;
-  }
-  if (currentAnsi >= -1) {
-    result += "\x1b[0m";
-  }
-
-  return [result];
+  return [barParts.join("")];
 }
 
-/** Render the compact info line */
+/** Render the compact info line below the bar */
 export function renderInfoLine(
   totalInput: number,
   totalOutput: number,
@@ -159,7 +112,7 @@ export function renderInfoLine(
   const cache = `cache:${Math.round(cacheReadPct)}%`;
   const turn = `turn ${turnCount}`;
 
-  // Usage ratio in Pi's format: X.X/Yk(auto)
+  // Usage ratio like Pi's default: X.X/Yk(auto)
   const usageRatio = contextWindow > 0
     ? `${formatTokens(totalInput)}/${formatTokens(contextWindow)}(auto)`
     : formatTokens(totalInput);
