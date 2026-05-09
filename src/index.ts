@@ -18,6 +18,14 @@ export default function (pi: ExtensionAPI) {
   let enabled = false;
   let lastRenderTime = 0;
   let currentSessionId = "ephemeral";
+  let thinkingLevel: string = "off";
+
+  // Capture initial thinking level
+  try {
+    thinkingLevel = pi.getThinkingLevel?.() || "off";
+  } catch {
+    thinkingLevel = "off";
+  }
 
   function getSessionId(ctx: any): string {
     try {
@@ -85,6 +93,7 @@ export default function (pi: ExtensionAPI) {
               w,
               currentAttribution.contextWindow,
               ctx.model?.id,
+              thinkingLevel,
             );
             return [...bar, info];
           } catch (e) {
@@ -158,8 +167,19 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event, ctx) => {
+    // Re-capture thinking level in case model change clamped it
+    try {
+      thinkingLevel = pi.getThinkingLevel?.() || thinkingLevel;
+    } catch {}
     computeFromContext(ctx);
     updateFooter(ctx);
+  });
+
+  pi.on("thinking_level_select", async (_event, _ctx) => {
+    try {
+      thinkingLevel = pi.getThinkingLevel?.() || "off";
+    } catch {}
+    updateFooter(_ctx);
   });
 
   pi.registerCommand("pistats", {

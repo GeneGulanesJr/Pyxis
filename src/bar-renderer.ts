@@ -105,6 +105,7 @@ export function renderInfoLine(
   width: number,
   contextWindow: number = 0,
   model?: string,
+  thinkingLevel?: string,
 ): string {
   const up = `↑${formatTokens(totalInput)}`;
   const down = `↓${formatTokens(totalOutput)}`;
@@ -112,13 +113,14 @@ export function renderInfoLine(
   const cache = `cache:${Math.round(cacheReadPct)}%`;
   const turn = `turn ${turnCount}`;
 
-  // Usage ratio in Pi's format: X.X/Yk(auto) or just X.X/Yk
+  // Usage ratio in Pi's format: X.X/Yk(auto)
   const usageRatio = contextWindow > 0
-    ? `${formatTokens(totalInput)}/${formatTokens(contextWindow) }(auto)`
+    ? `${formatTokens(totalInput)}/${formatTokens(contextWindow)}(auto)`
     : formatTokens(totalInput);
 
   const left = `${up} ${down} ${cost}`;
   const rightParts = [cache, turn, usageRatio];
+  if (thinkingLevel && thinkingLevel !== "off") rightParts.push(`think:${thinkingLevel}`);
   if (model) rightParts.push(model);
   const right = rightParts.join(" · ");
 

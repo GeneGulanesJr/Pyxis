@@ -64,11 +64,21 @@ describe("renderInfoLine", () => {
     assert.ok(line.includes("claude-3.5-sonnet"));
   });
 
+  it("shows thinking level when not off", () => {
+    const line = renderInfoLine(24000, 3000, 0.042, 62, 5, 80, 200000, "claude-sonnet-4", "high");
+    assert.ok(line.includes("think:high"));
+  });
+
+  it("hides thinking level when off", () => {
+    const line = renderInfoLine(24000, 3000, 0.042, 62, 5, 80, 200000, "claude-sonnet-4", "off");
+    const stripped = line.replace(/\x1b\[[0-9;]*m/g, "");
+    assert.ok(!stripped.includes("think:"));
+  });
+
   it("formats info line without model", () => {
     const line = renderInfoLine(24000, 3000, 0.042, 62, 5, 80, 200000);
     assert.ok(line.includes("24.0k"));
     assert.ok(line.includes("(auto)"));
-    // Should NOT contain model name
     const stripped = line.replace(/\x1b\[[0-9;]*m/g, "");
     assert.ok(!stripped.includes("claude"));
   });
