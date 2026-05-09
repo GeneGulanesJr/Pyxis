@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { renderBar, renderInfoLine } from "../src/bar-renderer.js";
+import { renderBar, renderInfoLine, renderLegend } from "../src/bar-renderer.js";
 import { SEGMENTS } from "../src/segments.js";
 import type { SegmentTokens } from "../src/attributor.js";
 
@@ -85,5 +85,39 @@ describe("renderInfoLine", () => {
   it("handles zero input", () => {
     const line = renderInfoLine(0, 0, 0, 0, 0, 80);
     assert.ok(line.length > 0);
+  });
+});
+
+describe("renderLegend", () => {
+  it("sorts segments by token usage descending (largest first)", () => {
+    const segments = [
+      makeSegment("system", 2000, 1),
+      makeSegment("fileReads", 20000, 10),
+      makeSegment("bash", 8000, 4),
+      makeSegment("userMsgs", 4000, 2),
+    ];
+    const lines = renderLegend(segments, 166000, 200000, 34000);
+    // The first visible segment in the output should be fileReads (largest)
+    // Strip ANSI to check ordering
+    const stripped = lines.map(l => l.replace(/\x1b\[[0-9;]*m/g, ""));
+    const joined = stripped.join(" ");
+    const fileReadsPos = joined.indexOf("File Reads");
+    const bashPos = joined.indexOf("Bash Output");
+    const userMsgsPos = joined.indexOf("User Messages");
+    const systemPos = joined.indexOf("System");
+    // fileReads should appear before all others
+    assert.ok(fileReadsPos < bashPos, "File Reads should appear before Bash Output");
+    assert.ok(fileReadsPos < userMsgsPos, "File Reads should appear before User Messages");
+    assert.ok(fileReadsPos < systemPos, "File Reads should appear before System");
+  });
+
+  it("places free segment at the end", () => {
+    const segments = [makeSegment("system", 2000, 1)];
+    const lines = renderLegend(segments, 198000, 200000, 2000);
+    const stripped = lines.map(l => l.replace(/\x1b\[[0-9;]*m/g, ""));
+    const joined = stripped.join(" ");
+    const freePos = joined.lastIndexOf("Free");
+    const systemPos = joined.indexOf("System");
+    assert.ok(freePos > systemPos, "Free should appear after System");
   });
 });

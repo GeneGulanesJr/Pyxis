@@ -134,7 +134,10 @@ export function renderInfoLine(
 export function renderLegend(segments: SegmentTokens[], freeTokens: number, contextWindow: number, totalInput: number): string[] {
   const lines: string[] = [];
   const maxNameLen = Math.max(...SEGMENTS.map(s => s.name.length), SEGMENT_FREE.name.length);
-  const allSegments = [...segments];
+  // Sort segments by token usage descending (largest first), keep free at end
+  const dataSegments = [...segments].filter(s => s.tokens > 0).sort((a, b) => b.tokens - a.tokens);
+  const zeroSegments = [...segments].filter(s => s.tokens === 0).sort((a, b) => b.tokens - a.tokens);
+  const allSegments = [...dataSegments, ...zeroSegments];
   if (freeTokens > 0) {
     allSegments.push({ segmentId: "free", name: SEGMENT_FREE.name, tokens: freeTokens, percentage: contextWindow > 0 ? (freeTokens / contextWindow) * 100 : 0 });
   }
