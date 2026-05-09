@@ -185,6 +185,22 @@ export async function getRecentSessions(limit: number = 10): Promise<any[]> {
   }
 }
 
+/** Query turns for a specific session */
+export async function getSessionTurns(sessionId: string): Promise<any[]> {
+  try {
+    const database = await getDb();
+    const result = database.exec(
+      `SELECT t.turn_index, t.input_tokens, t.output_tokens, t.cache_read, t.cost_total, t.timestamp
+       FROM turns t WHERE t.session_id = ? ORDER BY t.turn_index ASC`, [sessionId]);
+    return result[0]?.values?.map(row => ({
+      turnIndex: row[0], inputTokens: row[1], outputTokens: row[2],
+      cacheRead: row[3], costTotal: row[4], timestamp: row[5],
+    })) || [];
+  } catch {
+    return [];
+  }
+}
+
 /** Query top N segment bloaters across all sessions */
 export async function getTopSegments(limit: number = 5): Promise<any[]> {
   try {

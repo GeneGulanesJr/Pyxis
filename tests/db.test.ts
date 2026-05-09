@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { insertSession, updateSessionEnd, insertTurn, getRecentSessions, getTopSegments, closeDb } from "../src/db.js";
+import { insertSession, updateSessionEnd, insertTurn, getRecentSessions, getTopSegments, getSessionTurns, closeDb } from "../src/db.js";
 
 // Use a temporary DB path for testing
 const ORIGINAL_HOME = process.env.HOME;
@@ -88,6 +88,32 @@ describe("PiStats DB", () => {
     // bash should be the top segment (10000 tokens)
     assert.equal(topSegments[0].segment, "bash");
     assert.ok(topSegments[0].totalTokens >= 10000);
+  });
+
+  it("queries turns for a specific session", async () => {
+    await insertSession("test-session-5", "claude-3.5-sonnet", 200000, "/home/test");
+
+    const attribution = {
+      segments: [
+        { segmentId: "system", name: "System", tokens: 3000, percentage: 15 },
+        { segmentId: "bash", name: "Bash Output", tokens: 7000, percentage: 35 },
+      ],
+      segmentMap: new Map(),
+      totalInput: 20000,
+      totalOutput: 4000,
+      cacheReadPct: 50,
+      totalCost: 0.08,
+      freeTokens: 180000,
+      contextWindow: 200000,
+      turnCount: 1,
+    };
+
+    await insertTurn("test-session-5", 1, "entry-turn1", attribution);
+
+    const turns = await getSessionTurns("test-session-5");
+    assert.ok(turns.length >= 1);
+    assert.equal(turns[0].turnIndex, 1);
+    assert.ok(turns[0].inputTokens >= 20000);
   });
 
   it("handles missing session gracefully for turns", async () => {

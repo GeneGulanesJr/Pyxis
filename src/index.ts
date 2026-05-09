@@ -215,6 +215,29 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
+      if (trimmedArgs.startsWith("session")) {
+        const sessionId = trimmedArgs.slice(7).trim();
+        if (!sessionId) {
+          // Show current session ID
+          ctx.ui.notify(`Current session: ${currentSessionId}`, "info");
+          return;
+        }
+        try {
+          const turns = await db.getSessionTurns(sessionId);
+          if (turns.length === 0) {
+            ctx.ui.notify(`No turns found for session: ${sessionId}`, "info");
+            return;
+          }
+          const lines = turns.map((t: any) =>
+            `Turn ${t.turnIndex}: ↑${formatTokens(t.inputTokens)} ↓${formatTokens(t.outputTokens)} cache:${Math.round((t.cacheRead / Math.max(t.inputTokens, 1)) * 100)}% ${formatCost(t.costTotal)}`
+          );
+          ctx.ui.notify(lines.join("\n"), "info");
+        } catch (e) {
+          ctx.ui.notify(`Error reading session: ${sessionId}`, "info");
+        }
+        return;
+      }
+
       // Default: show legend with current values
       computeFromContext(ctx);
       if (!currentAttribution) {
