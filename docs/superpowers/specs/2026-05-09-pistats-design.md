@@ -22,9 +22,10 @@ pistats/
 ├── index.ts              # Extension entry point, event hooks
 ├── attributor.ts          # Walks branch entries, attributes tokens per segment
 ├── bar-renderer.ts        # Renders the color-coded footer bar
-├── db.ts                 # SQLite schema, writes, queries
+├── db.ts                 # SQLite schema, writes, queries (sql.js)
 ├── segments.ts           # Segment definitions, colors, classification logic
-└── package.json          # Dependencies (better-sqlite3)
+├── classify.ts            # Tool call ID → args lookup builder
+└── package.json          # Dependencies (sql.js)
 ```
 
 ## Segment Definitions
@@ -61,24 +62,45 @@ Each segment gets a visually distinct ANSI 256-color code:
 
 ### Classification Logic
 
-Each branch entry is classified into exactly one segment:
+Each branch entry is classified into exactly one segment. Classification requires a **two-pass approach**: first build a `toolCallId → args` lookup from assistant messages, then classify.
+
+#### Pass 1: Build tool call lookup
+
+Walk all entries and extract `ToolCall` blocks from assistant messages:
+
+```
+for each entry where message.role === "assistant":
+  for each content block where block.type === "toolCall":
+    toolCallLookup[block.id] = block.arguments
+```
+
+This lookup is needed because `ToolResultMessage` has `toolCallId` and `toolName` but NOT the original arguments. The path for `read` tool classification lives in `arguments.path`.
+
+#### Pass 2: Classify entries
 
 ```
 Walk ctx.sessionManager.getBranch() entries:
 
 entry.type === "message":
   message.role === "user":
-    Has ImageContent? → segment 16 (Images)
-    Has TextContent? → segment 14 (User Messages)
+    Has ImageContent in content array? → segment 16 (Images)
+      Token estimate: 1500 per image (fixed, based on typical screenshot resolution).
+      Images do NOT have text content to estimate via char ratio.
+      If both ImageContent and TextContent present, split:
+        TextContent chars → segment 14 (chars / 4)
+        ImageContent count → segment 16 (count × 1500)
+    Only TextContent? → segment 14 (User Messages)
   message.role === "assistant":
     Iterate content blocks and split tokens across them:
       ThinkingContent → segment 12 (Thinking)
       ToolCall → segment 13 (Tool Call Args)
+        Also record block.id → block.arguments in toolCallLookup
       TextContent → segment 15 (Assistant Text)
   message.role === "toolResult":
-    message.toolName === "read" → classify by path (from args):
-      path matches */AGENTS.md* → segment 2
-      path matches *SKILL.md* or */skills/* → segment 3
+    Lookup original args: args = toolCallLookup[message.toolCallId]
+    message.toolName === "read" → classify by path (from args.path):
+      args.path matches */AGENTS.md* → segment 2
+      args.path matches *SKILL.md* or */skills/* → segment 3
       else → segment 4 (File Reads)
     message.toolName === "bash" → segment 5 (Bash Output)
     message.toolName starts with "edit" or "write" → segment 6 (Edits)
@@ -89,6 +111,7 @@ entry.type === "message":
     else → segment 11 (Other Tools)
   message.role === "bashExecution" → segment 5 (Bash Output)
   message.role === "custom" → segment 19 (Extension Msgs)
+  message.role === "branchSummary" → segment 18 (Branch Summary)
 
 entry.type === "compaction":
   → segment 17 (Compaction)
@@ -98,17 +121,20 @@ entry.type === "compaction":
 
 ### Token Estimation & Calibration
 
-1. Walk the branch and estimate each entry's token count from content length (chars / 4 for English, chars / 3 for code-heavy content)
-2. Sum all estimates per segment
-3. Get actual `usage.input` from the latest assistant message
-4. Scale all estimates proportionally: `segment.tokens = (estimate / totalEstimate) × usage.input`
-5. Free = `contextWindow - usage.input` (exact, no estimation)
+1. **System prompt**: Measure directly from `ctx.getSystemPrompt()` — estimate via `length / 4`
+2. **Compaction**: Use `.tokensBefore` directly (exact value)
+3. **Images**: Fixed estimate of 1500 tokens per image (typical screenshot resolution)
+4. **All other content**: Estimate from content length — `chars / 4` for English text, `chars / 3` for code-heavy content
+5. Sum all estimates per segment
+6. Get actual `usage.input` from the latest assistant message
+7. Scale all estimates proportionally: `segment.tokens = (estimate / totalEstimate) × usage.input`
+8. Free = `contextWindow - usage.input` (exact, no estimation)
 
 This calibration ensures segments always sum to `usage.input` exactly, and only the *proportions* between segments rely on estimation.
 
-### Cache Hit Overlay
+### Cache Hit
 
-Cache hit is not an additive segment — it represents how much of the total input was served from cache. It's rendered as a patterned overlay (e.g., `░░` fill pattern inside the segments that were cached) or as a count in the info line: `cache:62%`.
+Cache hit is not an additive segment — it represents how much of the total input was served from cache. Since the API only provides a total `usage.cacheRead` value (not per-segment), it cannot be attributed to specific segments. It's shown only in the info line: `cache:62%`.
 
 ## Bar Rendering
 
@@ -127,7 +153,6 @@ Line 2: ↑24k ↓3k $0.042 · cache:62% · turn 5
 - Proportional width based on token count
 - Segments under 1 character wide get a minimum of 1 character
 - Free space rendered in dim `░` characters (ANSI 235)
-- Cache hit overlay: segments that were cached get striped pattern or distinct rendering (segment color on `░` background)
 
 **Line 2 — Compact Info:**
 - `↑{input}` — total input tokens
@@ -147,12 +172,13 @@ The bar shows at most 10 segments: the top 9 by size plus "Free". Smaller segmen
 ### Rendering Trigger
 
 The bar updates on these events:
-- `message_end` (streaming token update)
-- `turn_end` (final token counts for the turn)
+- `message_update` (streaming token update — throttled to max once per second)
+- `message_end` (final token counts; used for SQLite writes, not throttled)
+- `turn_end` (final attribution + DB write)
 - `model_select` (context window size may change)
 - `session_start` (new session, reset)
 
-An internal throttle prevents rendering more than once per second during streaming.
+An internal throttle prevents rendering more than once per second during streaming on `message_update`. `message_end` and `turn_end` always render.
 
 ## /pistats Command
 
@@ -261,9 +287,11 @@ pi.registerCommand("pistats", { /* ... */ });
 
 ## Dependencies
 
-- `better-sqlite3` — SQLite3 for Node.js (compiled native addon)
+- `sql.js` — SQLite3 compiled to WASM (pure JS, no native compilation required, works with jiti)
 - `@earendil-works/pi-coding-agent` — Pi extension types (already available)
 - `@earendil-works/pi-tui` — TUI rendering utilities (already available)
+
+Note: `better-sqlite3` was considered but requires `node-gyp` compilation. Since Pi extensions run via jiti without a build step, `sql.js` (WASM-based) is the safer choice. It's slightly slower for large datasets but perfectly fine for per-turn writes.
 
 ## Implementation Phases
 
