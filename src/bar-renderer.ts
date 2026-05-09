@@ -12,6 +12,7 @@ const MIN_BAR_WIDTH = 40;
 const MAX_VISIBLE_SEGMENTS = 10;
 const NARROW_MAX_SEGMENTS = 7;
 const COLLAPSED_MIN_WIDTH = 60;
+const MIN_BAR_LABEL_WIDTH = 24;
 
 /** ANSI 256-color foreground code */
 function ansi256(code: number, text: string): string {
@@ -23,72 +24,7 @@ function dim(text: string): string {
   return `\x1b[2m${text}\x1b[0m`;
 }
 
-/** ANSI bold bright white text */
-function bold(text: string): string {
-  return `\x1b[1m\x1b[37m${text}\x1b[0m`;
-}
-
-/** Overlay centered text on a bar string */
-function overlayText(bar: string, text: string, width: number): string {
-  const textLen = text.length;
-  if (textLen >= width - 4) return bar; // Not enough room
-  const start = Math.floor((width - textLen) / 2);
-  // Strip ANSI codes to get visible chars, then rebuild
-  const visible = bar.replace(/\x1b\[[0-9;]*m/g, "");
-  // Build: bar left | centered text | bar right
-  // We need to split the visible string and re-apply coloring
-  const visibleLeft = visible.slice(0, start);
-  const visibleRight = visible.slice(start + textLen);
-  // Find the ANSI sequences at the split points
-  let result = "";
-  let vi = 0; // visible index
-  let bi = 0; // bar (with ANSI) index
-  let inBar = true;
-  // Reconstruct left part with its ANSI codes
-  let leftBar = "";
-  let currentAnsi = "";
-  let visibleCounted = 0;
-  while (bi < bar.length && visibleCounted < start) {
-    if (bar[bi] === "\x1b") {
-      // ANSI escape sequence
-      const end = bar.indexOf("m", bi) + 1;
-      currentAnsi = bar.slice(bi, end);
-      leftBar += currentAnsi;
-      bi = end;
-    } else {
-      leftBar += bar[bi];
-      visibleCounted++;
-      bi++;
-    }
-  }
-  // Close any open ANSI on left
-  leftBar += "\x1b[0m";
-
-  let rightBar = "";
-  visibleCounted = 0;
-  let targetVisible = start + textLen;
-  // Skip characters up to targetVisible
-  bi = 0;
-  let pendingAnsi = "";
-  visibleCounted = 0;
-  while (bi < bar.length) {
-    if (bar[bi] === "\x1b") {
-      const end = bar.indexOf("m", bi) + 1;
-      pendingAnsi = bar.slice(bi, end);
-      bi = end;
-    } else {
-      if (visibleCounted >= targetVisible) break;
-      visibleCounted++;
-      bi++;
-    }
-  }
-  // rightBar starts with whatever ANSI was pending, then rest of bar
-  rightBar = pendingAnsi + bar.slice(bi);
-
-  return leftBar + bold(text) + rightBar;
-}
-
-/** Render the color-coded bar */
+/** Render the color-coded bar with optional centered label */
 export function renderBar(
   segments: SegmentTokens[],
   freeTokens: number,
@@ -102,7 +38,6 @@ export function renderBar(
 
   const maxVisible = width < COLLAPSED_MIN_WIDTH ? NARROW_MAX_SEGMENTS : MAX_VISIBLE_SEGMENTS;
 
-  // Sort segments by tokens (descending), keep top N-1, collapse rest
   const sorted = [...segments]
     .filter(s => s.tokens > 0)
     .sort((a, b) => b.tokens - a.tokens);
@@ -110,7 +45,6 @@ export function renderBar(
   const topCount = maxVisible - 1;
   const top = sorted.slice(0, topCount);
   const collapsedEntries = sorted.slice(topCount);
-
   const collapsedTokens = collapsedEntries.reduce((sum, s) => sum + s.tokens, 0);
 
   const totalTokens = segments.reduce((sum, s) => sum + s.tokens, 0) + freeTokens;
@@ -118,60 +52,93 @@ export function renderBar(
     return [ansi256(SEGMENT_FREE.ansi, "░".repeat(width))];
   }
 
-  const parts: Array<{ id: string; tokens: number; ansi: number }> = [];
+  // Build the visible-bar parts: each has {color, char, count}
+  const parts: Array<{ ansi: number; char: string; count: number }> = [];
 
   for (const s of top) {
     const def = SEGMENT_MAP.get(s.segmentId as SegmentId);
     if (def) {
-      parts.push({ id: s.segmentId, tokens: s.tokens, ansi: def.ansi });
+      parts.push({ ansi: def.ansi, char: "█", count: s.tokens });
     }
   }
-
   if (collapsedTokens > 0) {
-    parts.push({ id: "collapsed", tokens: collapsedTokens, ansi: SEGMENT_COLLAPSED.ansi });
+    parts.push({ ansi: SEGMENT_COLLAPSED.ansi, char: "█", count: collapsedTokens });
   }
-
   if (freeTokens > 0) {
-    parts.push({ id: "free", tokens: freeTokens, ansi: SEGMENT_FREE.ansi });
+    parts.push({ ansi: SEGMENT_FREE.ansi, char: "░", count: freeTokens });
   }
 
-  // Compute character widths
-  const barParts: string[] = [];
-  let remainingWidth = width;
+  // Allocate character positions proportionally
+  const total = parts.reduce((sum, p) => sum + p.count, 0);
+  const allocated: Array<{ ansi: number; char: string; width: number }> = [];
+  let remaining = width;
 
   for (let i = 0; i < parts.length; i++) {
     const isLast = i === parts.length - 1;
-    const proportion = parts[i].tokens / totalTokens;
-    let charWidth: number;
-
+    let w: number;
     if (isLast) {
-      charWidth = remainingWidth;
+      w = remaining;
     } else {
-      charWidth = Math.max(1, Math.round(proportion * width));
+      w = Math.max(1, Math.round((parts[i].count / total) * width));
+      w = Math.min(w, remaining);
     }
-
-    charWidth = Math.min(charWidth, remainingWidth);
-    remainingWidth -= charWidth;
-
-    if (charWidth <= 0) continue;
-
-    const fillChar = parts[i].id === "free" ? "░" : "█";
-    barParts.push(ansi256(parts[i].ansi, fillChar.repeat(charWidth)));
+    allocated.push({ ansi: parts[i].ansi, char: parts[i].char, width: w });
+    remaining -= w;
   }
 
-  const rawBar = barParts.join("");
+  // Build a flat array: position → {ansi, char}
+  const cells: Array<{ ansi: number; char: string }> = [];
+  for (const a of allocated) {
+    for (let i = 0; i < a.width; i++) {
+      cells.push({ ansi: a.ansi, char: a.char });
+    }
+  }
+  // Ensure cells length matches width (pad or trim)
+  while (cells.length < width) cells.push({ ansi: SEGMENT_FREE.ansi, char: "░" });
+  if (cells.length > width) cells.length = width;
 
-  // Overlay usage text centered inside the bar if wide enough
-  const minOverlayWidth = 30; // Need at least 30 chars to show "Xk/Yk"
-  if (totalInput > 0 && contextWindow > 0 && width >= minOverlayWidth) {
+  // Compute label
+  let label = "";
+  if (totalInput > 0 && contextWindow > 0 && width >= MIN_BAR_LABEL_WIDTH) {
     const pct = Math.round((totalInput / contextWindow) * 100);
-    const label = `${formatTokens(totalInput)}/${formatTokens(contextWindow)} ${pct}%`;
-    if (label.length + 4 <= width) {
-      return [overlayText(rawBar, label, width)];
+    const candidate = `[${formatTokens(totalInput)}/${formatTokens(contextWindow)} ${pct}%]`;
+    if (candidate.length <= width - 4) {
+      label = candidate;
     }
   }
 
-  return [rawBar];
+  // Stamp label into center of cells
+  if (label) {
+    const start = Math.floor((width - label.length) / 2);
+    for (let i = 0; i < label.length; i++) {
+      cells[start + i] = { ansi: -1, char: label[i] }; // -1 = label (bold white)
+    }
+  }
+
+  // Render cells to ANSI string
+  let result = "";
+  let currentAnsi = -2; // -2 = no current color
+  for (const cell of cells) {
+    if (cell.ansi !== currentAnsi) {
+      if (currentAnsi === -1) {
+        result += "\x1b[0m"; // end bold white
+      } else if (currentAnsi >= 0) {
+        result += "\x1b[0m"; // end 256-color
+      }
+      if (cell.ansi === -1) {
+        result += "\x1b[1m\x1b[37m"; // bold white
+      } else {
+        result += `\x1b[38;5;${cell.ansi}m`;
+      }
+      currentAnsi = cell.ansi;
+    }
+    result += cell.char;
+  }
+  if (currentAnsi >= -1) {
+    result += "\x1b[0m";
+  }
+
+  return [result];
 }
 
 /** Render the compact info line */
@@ -203,7 +170,6 @@ export function renderInfoLine(
   if (model) rightParts.push(model);
   const right = rightParts.join(" · ");
 
-  // Calculate visible widths (excluding ANSI codes)
   const leftVisible = left.length;
   const rightVisible = right.length;
   const padLen = Math.max(1, width - leftVisible - rightVisible);
@@ -220,10 +186,6 @@ export function renderLegend(segments: SegmentTokens[], freeTokens: number, cont
     allSegments.push({ segmentId: "free", name: SEGMENT_FREE.name, tokens: freeTokens, percentage: contextWindow > 0 ? (freeTokens / contextWindow) * 100 : 0 });
   }
 
-  // Render 3 columns per row
-  const colWidth = 28;
-  const cols = 3;
-
   let line = "";
   for (const s of allSegments) {
     const def = s.segmentId === "free" ? SEGMENT_FREE : SEGMENT_MAP.get(s.segmentId as SegmentId);
@@ -234,7 +196,7 @@ export function renderLegend(segments: SegmentTokens[], freeTokens: number, cont
     const pct = `(${s.percentage.toFixed(1)}%)`.padStart(7);
     const entry = `${block} ${name} ${tokens} ${pct}`;
 
-    if (line.length > 0 && line.length + entry.length + 2 > cols * colWidth) {
+    if (line.length > 0 && line.length + entry.length + 2 > 80) {
       lines.push(line.trimEnd());
       line = "";
     }
