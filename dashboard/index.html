@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PiStats Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/sql-wasm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --success: #3fb950;
+  --warning: #d29922;
+  --error: #f85149;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; cursor: pointer; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+#dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 2rem; text-align: center;
+}
+#dropzone h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+#dropzone p { color: var(--text-dim); margin-bottom: 1.5rem; }
+.drop-area {
+  border: 2px dashed var(--border); border-radius: 12px; padding: 3rem 4rem;
+  cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.drop-area:hover, .drop-area.drag-over {
+  border-color: var(--accent); background: rgba(88,166,255,0.05);
+}
+.drop-area p { margin: 0; font-size: 0.9rem; }
+.drop-area .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+#dashboard { display: none; }
+.nav {
+  display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+  position: sticky; top: 0; z-index: 10;
+}
+.nav h1 { font-size: 1rem; font-weight: 600; }
+.nav .breadcrumb { color: var(--text-dim); font-size: 0.85rem; }
+.nav .spacer { flex: 1; }
+.nav .stats { color: var(--text-dim); font-size: 0.8rem; }
+.nav button {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  padding: 0.3rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+.nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+.section { margin-bottom: 2rem; }
+.section h2 { font-size: 1.1rem; margin-bottom: 0.75rem; font-weight: 600; }
+
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem; margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1rem;
+}
+.stat-card .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.25rem; }
+.stat-card .sub { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.15rem; }
+
+.charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+}
+.chart-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1rem; min-height: 300px;
+}
+.chart-card h3 { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+.chart-card canvas { width: 100% !important; }
+
+table {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+}
+th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--text-dim); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+tr:hover td { background: rgba(88,166,255,0.04); }
+tr { cursor: pointer; }
+
+.segment-bar {
+  display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin: 0.5rem 0;
+}
+.segment-bar .seg {
+  height: 100%; transition: width 0.3s; position: relative; min-width: 1px;
+}
+.segment-bar .seg:hover { opacity: 0.8; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-top: 0.5rem; }
+.legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: var(--text-dim); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+.back-link { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem;
+  font-size: 0.85rem; z-index: 100; display: none;
+}
+.toast.error { border-color: var(--error); color: var(--error); }
+
+.empty { color: var(--text-dim); text-align: center; padding: 2rem; font-size: 0.9rem; }
+
+@media (max-width: 768px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .container { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<div id="dropzone">
+  <h1>PiStats Dashboard</h1>
+  <p>Drop your <code>pistats.db</code> file here to visualize your Pi usage</p>
+  <div class="drop-area" id="dropArea">
+    <div class="icon">&#128196;</div>
+    <p>Drag &amp; drop <code>~/.pi/agent/pistats.db</code></p>
+    <p style="margin-top:0.5rem; font-size:0.8rem; color:var(--text-dim)">or click to browse</p>
+    <input type="file" id="fileInput" accept=".db" style="display:none">
+  </div>
+  <p style="margin-top:1rem; font-size:0.75rem; color:var(--text-dim)">
+    Tip: Run <code>cp ~/.pi/agent/pistats.db ./pistats.db</code> then open this file
+  </p>
+</div>
+
+<div id="dashboard">
+  <nav class="nav">
+    <h1>PiStats</h1>
+    <span class="breadcrumb" id="breadcrumb"></span>
+    <span class="spacer"></span>
+    <span class="stats" id="navStats"></span>
+    <button onclick="resetDb()">Load New DB</button>
+  </nav>
+  <div id="overview" class="container">
+    <div class="stats-grid" id="summaryCards"></div>
+    <div class="section">
+      <h2>Top Segment Consumers</h2>
+      <div class="chart-card"><canvas id="topSegmentsChart"></canvas></div>
+    </div>
+    <div class="section">
+      <h2>Cost Over Sessions</h2>
+      <div class="chart-card"><canvas id="costChart"></canvas></div>
+    </div>
+    <div class="section">
+      <h2>Cache Hit Rate Over Sessions</h2>
+      <div class="chart-card"><canvas id="cacheChart"></canvas></div>
+    </div>
+    <div class="section">
+      <h2>Sessions</h2>
+      <table id="sessionsTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Model</th>
+            <th>Turns</th>
+            <th>Input</th>
+            <th>Output</th>
+            <th>Cache Hit</th>
+            <th>Cost</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="detail" class="container" style="display:none">
+    <div style="margin-bottom:1rem">
+      <a class="back-link" onclick="showOverview()">&#8592; All Sessions</a>
+    </div>
+    <div class="stats-grid" id="detailCards"></div>
+    <div class="section">
+      <h2>Context Window Composition</h2>
+      <div id="contextBar" class="segment-bar"></div>
+      <div id="contextLegend" class="legend"></div>
+    </div>
+    <div class="section">
+      <h2>Segment Distribution Per Turn</h2>
+      <div class="chart-card" style="min-height:350px"><canvas id="segmentsPerTurnChart"></canvas></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Token Usage Per Turn</h3><canvas id="tokensPerTurnChart"></canvas></div>
+      <div class="chart-card"><h3>Cache Hit Rate Per Turn</h3><canvas id="cachePerTurnChart"></canvas></div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Cost Per Turn</h3><canvas id="costPerTurnChart"></canvas></div>
+      <div class="chart-card"><h3>Context Window Fill %</h3><canvas id="fillPerTurnChart"></canvas></div>
+    </div>
+    <div class="section">
+      <h2>Turns Detail</h2>
+      <table id="turnsTable">
+        <thead>
+          <tr>
+            <th>Turn</th>
+            <th>Input Tokens</th>
+            <th>Output Tokens</th>
+            <th>Cache Read</th>
+            <th>Cost</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SEGMENT_COLORS = {
+  system:       '#0087ff',
+  agentsMd:     '#008700',
+  skills:       '#0087af',
+  fileReads:    '#5f8700',
+  bash:         '#af8700',
+  edits:        '#d75f00',
+  browser:      '#d75faf',
+  memory:       '#5fafaf',
+  webSearch:    '#8fafaf',
+  design:       '#af5faf',
+  otherTools:   '#8a8a8a',
+  thinking:     '#af005f',
+  toolCallArgs: '#af5f00',
+  userMsgs:     '#afd7ff',
+  asstText:     '#d7d7ff',
+  images:       '#ff5f5f',
+  compaction:   '#d7afd7',
+  branchSummary:'#d7afaf',
+  extMsgs:      '#ffd7af',
+  free:         '#585858',
+};
+
+const SEGMENT_NAMES = {
+  system: 'System', agentsMd: 'AGENTS.md', skills: 'Skills', fileReads: 'File Reads',
+  bash: 'Bash', edits: 'Edits', browser: 'Browser', memory: 'Memory',
+  webSearch: 'WEB Search', design: 'Design', otherTools: 'Other Tools',
+  thinking: 'Thinking', toolCallArgs: 'Tool Call Args', userMsgs: 'User Messages',
+  asstText: 'Asst Text', images: 'Images', compaction: 'Compaction',
+  branchSummary: 'Branch Summary', extMsgs: 'Extension Msgs', free: 'Free',
+};
+
+let db = null;
+let charts = {};
+let sessionsData = [];
+
+function fmtTokens(n) {
+  if (n == null) return '-';
+  if (n < 1000) return String(n);
+  if (n < 1e6) return (n / 1000).toFixed(1) + 'k';
+  return (n / 1e6).toFixed(1) + 'M';
+}
+function fmtCost(n) { return '$' + (n || 0).toFixed(3); }
+function fmtPct(n) { return Math.round(n || 0) + '%'; }
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtTime(iso) {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDuration(start, end) {
+  if (!start || !end) return '-';
+  const ms = new Date(end) - new Date(start);
+  if (ms < 60000) return Math.round(ms / 1000) + 's';
+  if (ms < 3600000) return Math.round(ms / 60000) + 'm';
+  return (ms / 3600000).toFixed(1) + 'h';
+}
+
+function query(sql, params = []) {
+  if (!db) return [];
+  const result = db.exec(sql, params);
+  if (!result[0]) return [];
+  const cols = result[0].columns;
+  return result[0].values.map(row => {
+    const obj = {};
+    cols.forEach((c, i) => obj[c] = row[i]);
+    return obj;
+  });
+}
+
+function queryOne(sql, params = []) {
+  const rows = query(sql, params);
+  return rows[0] || null;
+}
+
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { if (c && c.destroy) c.destroy(); });
+  charts = {};
+}
+
+function resetDb() {
+  db = null;
+  sessionsData = [];
+  destroyCharts();
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('dropzone').style.display = 'flex';
+}
+
+async function loadDb(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const SQL = await initSqlJs();
+    db = new SQL.Database(new Uint8Array(buffer));
+    const test = query("SELECT count(*) as cnt FROM sqlite_master WHERE type='table'");
+    if (!test[0] || test[0].cnt < 3) {
+      toast('Invalid pistats.db: missing tables', true);
+      return;
+    }
+    document.getElementById('dropzone').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    showOverview();
+  } catch (e) {
+    toast('Failed to load DB: ' + e.message, true);
+    console.error(e);
+  }
+}
+
+function showOverview() {
+  destroyCharts();
+  document.getElementById('overview').style.display = 'block';
+  document.getElementById('detail').style.display = 'none';
+  document.getElementById('breadcrumb').textContent = '';
+  renderOverview();
+}
+
+function showSessionDetail(sessionId) {
+  destroyCharts();
+  document.getElementById('overview').style.display = 'none';
+  document.getElementById('detail').style.display = 'block';
+  renderSessionDetail(sessionId);
+}
+
+function renderOverview() {
+  const agg = queryOne(`
+    SELECT count(DISTINCT s.id) as sessions,
+           coalesce(sum(t.input_tokens), 0) as total_input,
+           coalesce(sum(t.output_tokens), 0) as total_output,
+           coalesce(sum(t.cost_total), 0) as total_cost,
+           count(DISTINCT t.id) as total_turns
+    FROM sessions s LEFT JOIN turns t ON s.id = t.session_id
+  `);
+
+  document.getElementById('navStats').textContent =
+    `${agg.sessions || 0} sessions · ${fmtTokens(agg.total_input)} tokens · ${fmtCost(agg.total_cost)}`;
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="stat-card"><div class="label">Sessions</div><div class="value">${agg.sessions || 0}</div></div>
+    <div class="stat-card"><div class="label">Total Input</div><div class="value">${fmtTokens(agg.total_input)}</div></div>
+    <div class="stat-card"><div class="label">Total Output</div><div class="value">${fmtTokens(agg.total_output)}</div></div>
+    <div class="stat-card"><div class="label">Total Cost</div><div class="value">${fmtCost(agg.total_cost)}</div></div>
+    <div class="stat-card"><div class="label">Total Turns</div><div class="value">${agg.total_turns || 0}</div></div>
+    <div class="stat-card"><div class="label">Avg Cost/Session</div><div class="value">${fmtCost((agg.total_cost || 0) / Math.max(agg.sessions || 1, 1))}</div></div>
+  `;
+
+  renderTopSegments();
+  renderCostChart();
+  renderCacheChart();
+  renderSessionsTable();
+}
+
+function renderTopSegments() {
+  const data = query(`
+    SELECT sb.segment, sum(sb.tokens) as total_tokens, avg(sb.percentage) as avg_pct
+    FROM segment_breakdown sb JOIN turns t ON sb.turn_id = t.id
+    GROUP BY sb.segment ORDER BY total_tokens DESC LIMIT 12
+  `);
+  if (!data.length) return;
+
+  const labels = data.map(r => SEGMENT_NAMES[r.segment] || r.segment);
+  const colors = data.map(r => SEGMENT_COLORS[r.segment] || '#666');
+  const tokens = data.map(r => r.total_tokens);
+
+  const ctx = document.getElementById('topSegmentsChart').getContext('2d');
+  charts.topSegments = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: tokens,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => fmtTokens(ctx.raw) + ' tokens'
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => fmtTokens(v) } },
+        y: { grid: { display: false }, ticks: { color: '#c9d1d9' } }
+      }
+    }
+  });
+}
+
+function renderCostChart() {
+  const data = query(`
+    SELECT s.id, s.started_at, s.model, sum(t.cost_total) as cost
+    FROM sessions s LEFT JOIN turns t ON s.id = t.session_id
+    GROUP BY s.id ORDER BY s.started_at ASC
+  `);
+  if (!data.length) return;
+
+  const labels = data.map(r => fmtDate(r.started_at));
+  const costs = data.map(r => r.cost || 0);
+  let cumulative = 0;
+  const cumulativeCosts = costs.map(c => { cumulative += c; return cumulative; });
+
+  const ctx = document.getElementById('costChart').getContext('2d');
+  charts.cost = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Session Cost',
+          data: costs,
+          backgroundColor: 'rgba(88,166,255,0.6)',
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Cumulative',
+          data: cumulativeCosts,
+          type: 'line',
+          borderColor: '#d29922',
+          pointRadius: 2,
+          tension: 0.3,
+          yAxisID: 'y1',
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', maxRotation: 45 } },
+        y: { position: 'left', grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => '$' + v.toFixed(2) }, title: { display: true, text: 'Per Session', color: '#8b949e' } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#d29922', callback: v => '$' + v.toFixed(2) }, title: { display: true, text: 'Cumulative', color: '#d29922' } }
+      }
+    }
+  });
+}
+
+function renderCacheChart() {
+  const data = query(`
+    SELECT s.id, s.started_at,
+           sum(t.cache_read) as cache, sum(t.input_tokens) as input
+    FROM sessions s JOIN turns t ON s.id = t.session_id
+    GROUP BY s.id ORDER BY s.started_at ASC
+  `);
+  if (!data.length) return;
+
+  const labels = data.map(r => fmtDate(r.started_at));
+  const cachePcts = data.map(r => r.input > 0 ? ((r.cache || 0) / r.input) * 100 : 0);
+
+  const ctx = document.getElementById('cacheChart').getContext('2d');
+  charts.cache = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cache Hit %',
+        data: cachePcts,
+        borderColor: '#3fb950',
+        backgroundColor: 'rgba(63,185,80,0.1)',
+        fill: true,
+        pointRadius: 3,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', maxRotation: 45 } },
+        y: { min: 0, max: 100, grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => v + '%' } }
+      }
+    }
+  });
+}
+
+function renderSessionsTable() {
+  sessionsData = query(`
+    SELECT s.id, s.model, s.context_window, s.cwd, s.started_at, s.ended_at,
+           count(t.id) as turns,
+           coalesce(sum(t.input_tokens), 0) as total_input,
+           coalesce(sum(t.output_tokens), 0) as total_output,
+           coalesce(sum(t.cache_read), 0) as total_cache,
+           coalesce(sum(t.cost_total), 0) as total_cost
+    FROM sessions s LEFT JOIN turns t ON s.id = t.session_id
+    GROUP BY s.id ORDER BY s.started_at DESC
+  `);
+
+  const tbody = document.querySelector('#sessionsTable tbody');
+  tbody.innerHTML = sessionsData.map(s => `
+    <tr onclick="showSessionDetail('${s.id}')">
+      <td>${fmtDate(s.started_at)} ${fmtTime(s.started_at)}</td>
+      <td>${s.model || '-'}</td>
+      <td>${s.turns || 0}</td>
+      <td>${fmtTokens(s.total_input)}</td>
+      <td>${fmtTokens(s.total_output)}</td>
+      <td>${s.total_input > 0 ? fmtPct((s.total_cache / s.total_input) * 100) : '-'}</td>
+      <td>${fmtCost(s.total_cost)}</td>
+      <td>${fmtDuration(s.started_at, s.ended_at)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderSessionDetail(sessionId) {
+  const session = queryOne("SELECT * FROM sessions WHERE id = ?", [sessionId]);
+  if (!session) { toast('Session not found', true); showOverview(); return; }
+
+  document.getElementById('breadcrumb').textContent = ' / ' + (session.model || sessionId.slice(0, 8));
+
+  const turns = query(`
+    SELECT t.*, sb_data.segments_json
+    FROM turns t
+    LEFT JOIN (
+      SELECT sb.turn_id, json_group_array(json_object('segment', sb.segment, 'tokens', sb.tokens, 'percentage', sb.percentage)) as segments_json
+      FROM segment_breakdown sb GROUP BY sb.turn_id
+    ) sb_data ON t.id = sb_data.turn_id
+    WHERE t.session_id = ? ORDER BY t.turn_index ASC
+  `, [sessionId]);
+
+  const totalInput = turns.reduce((s, t) => s + (t.input_tokens || 0), 0);
+  const totalOutput = turns.reduce((s, t) => s + (t.output_tokens || 0), 0);
+  const totalCost = turns.reduce((s, t) => s + (t.cost_total || 0), 0);
+  const totalCache = turns.reduce((s, t) => s + (t.cache_read || 0), 0);
+  const cachePct = totalInput > 0 ? (totalCache / totalInput) * 100 : 0;
+  const lastTurn = turns[turns.length - 1];
+
+  document.getElementById('detailCards').innerHTML = `
+    <div class="stat-card"><div class="label">Model</div><div class="value" style="font-size:1rem">${session.model || '-'}</div></div>
+    <div class="stat-card"><div class="label">Context Window</div><div class="value">${fmtTokens(session.context_window)}</div></div>
+    <div class="stat-card"><div class="label">Turns</div><div class="value">${turns.length}</div></div>
+    <div class="stat-card"><div class="label">Total Input</div><div class="value">${fmtTokens(totalInput)}</div></div>
+    <div class="stat-card"><div class="label">Total Output</div><div class="value">${fmtTokens(totalOutput)}</div></div>
+    <div class="stat-card"><div class="label">Cost</div><div class="value">${fmtCost(totalCost)}</div></div>
+    <div class="stat-card"><div class="label">Cache Hit</div><div class="value">${fmtPct(cachePct)}</div></div>
+    <div class="stat-card"><div class="label">Duration</div><div class="value">${fmtDuration(session.started_at, session.ended_at)}</div></div>
+    <div class="stat-card"><div class="label">Working Dir</div><div class="value" style="font-size:0.8rem; word-break:break-all">${session.cwd || '-'}</div></div>
+    <div class="stat-card"><div class="label">Date</div><div class="value" style="font-size:1rem">${fmtDate(session.started_at)}</div></div>
+  `;
+
+  renderContextBar(turns, session.context_window);
+  renderSegmentsPerTurn(turns);
+  renderTokensPerTurn(turns);
+  renderCachePerTurn(turns);
+  renderCostPerTurn(turns, session.context_window);
+  renderTurnsTable(turns);
+}
+
+function renderContextBar(turns, contextWindow) {
+  const lastTurn = turns[turns.length - 1];
+  if (!lastTurn || !lastTurn.segments_json) return;
+
+  let segments;
+  try { segments = JSON.parse(lastTurn.segments_json); } catch { return; }
+  const segMap = {};
+  segments.forEach(s => { segMap[s.segment] = s.tokens; });
+  const used = Object.values(segMap).reduce((a, b) => a + b, 0);
+  const free = Math.max(0, contextWindow - used);
+  const total = used + free;
+
+  const bar = document.getElementById('contextBar');
+  const legend = document.getElementById('contextLegend');
+
+  const allSegs = [...segments.sort((a, b) => b.tokens - a.tokens)];
+  if (free > 0) allSegs.push({ segment: 'free', tokens: free, percentage: (free / contextWindow) * 100 });
+
+  bar.innerHTML = allSegs
+    .filter(s => s.tokens > 0)
+    .map(s => {
+      const pct = (s.tokens / total) * 100;
+      const color = SEGMENT_COLORS[s.segment] || '#666';
+      const name = SEGMENT_NAMES[s.segment] || s.segment;
+      return `<div class="seg" style="width:${pct}%;background:${color}" title="${name}: ${fmtTokens(s.tokens)} (${fmtPct(s.percentage || (pct))})"></div>`;
+    }).join('');
+
+  legend.innerHTML = allSegs
+    .filter(s => s.tokens > 0)
+    .map(s => {
+      const color = SEGMENT_COLORS[s.segment] || '#666';
+      const name = SEGMENT_NAMES[s.segment] || s.segment;
+      return `<span class="legend-item"><span class="legend-dot" style="background:${color}"></span>${name} ${fmtTokens(s.tokens)}</span>`;
+    }).join('');
+}
+
+function parseSegments(turn) {
+  if (!turn.segments_json) return {};
+  try { return JSON.parse(turn.segments_json); } catch { return {}; }
+}
+
+function renderSegmentsPerTurn(turns) {
+  const segmentIds = new Set();
+  const parsed = turns.map(t => {
+    const segs = parseSegments(t);
+    const map = {};
+    segs.forEach(s => {
+      map[s.segment] = s.tokens;
+      segmentIds.add(s.segment);
+    });
+    return { turn: t.turn_index, map };
+  });
+
+  const ids = [...segmentIds];
+  const labels = parsed.map(p => 'Turn ' + p.turn);
+  const datasets = ids.map(id => ({
+    label: SEGMENT_NAMES[id] || id,
+    data: parsed.map(p => p.map[id] || 0),
+    backgroundColor: SEGMENT_COLORS[id] || '#666',
+  }));
+
+  const ctx = document.getElementById('segmentsPerTurnChart').getContext('2d');
+  charts.segmentsPerTurn = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#8b949e', boxWidth: 12, font: { size: 10 } } },
+        tooltip: { mode: 'index', callbacks: { label: c => `${c.dataset.label}: ${fmtTokens(c.raw)}` } }
+      },
+      scales: {
+        x: { stacked: true, grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+        y: { stacked: true, grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => fmtTokens(v) } }
+      }
+    }
+  });
+}
+
+function renderTokensPerTurn(turns) {
+  const labels = turns.map(t => 'Turn ' + t.turn_index);
+  const ctx = document.getElementById('tokensPerTurnChart').getContext('2d');
+  charts.tokensPerTurn = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Input', data: turns.map(t => t.input_tokens || 0), borderColor: '#58a6ff', tension: 0.3, pointRadius: 3 },
+        { label: 'Output', data: turns.map(t => t.output_tokens || 0), borderColor: '#f85149', tension: 0.3, pointRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => fmtTokens(v) } }
+      }
+    }
+  });
+}
+
+function renderCachePerTurn(turns) {
+  const labels = turns.map(t => 'Turn ' + t.turn_index);
+  const pcts = turns.map(t => (t.input_tokens || 0) > 0 ? ((t.cache_read || 0) / t.input_tokens) * 100 : 0);
+  const ctx = document.getElementById('cachePerTurnChart').getContext('2d');
+  charts.cachePerTurn = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Cache Hit %',
+        data: pcts,
+        borderColor: '#3fb950',
+        backgroundColor: 'rgba(63,185,80,0.1)',
+        fill: true, tension: 0.3, pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+        y: { min: 0, max: 100, grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => v + '%' } }
+      }
+    }
+  });
+}
+
+function renderCostPerTurn(turns, contextWindow) {
+  const labels = turns.map(t => 'Turn ' + t.turn_index);
+  let cum = 0;
+  const cumulative = turns.map(t => { cum += t.cost_total || 0; return cum; });
+
+  const ctx = document.getElementById('costPerTurnChart').getContext('2d');
+  charts.costPerTurn = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Turn Cost', data: turns.map(t => t.cost_total || 0), backgroundColor: 'rgba(88,166,255,0.6)', borderRadius: 4, yAxisID: 'y' },
+        { label: 'Cumulative', data: cumulative, type: 'line', borderColor: '#d29922', pointRadius: 2, tension: 0.3, yAxisID: 'y1' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+        y: { position: 'left', grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => '$' + v.toFixed(3) } },
+        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#d29922', callback: v => '$' + v.toFixed(2) } }
+      }
+    }
+  });
+
+  const fillPcts = turns.map(t => contextWindow > 0 ? ((t.input_tokens || 0) / contextWindow) * 100 : 0);
+  const ctx2 = document.getElementById('fillPerTurnChart').getContext('2d');
+  charts.fillPerTurn = new Chart(ctx2, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Context Fill %',
+        data: fillPcts,
+        borderColor: '#d29922',
+        backgroundColor: 'rgba(210,153,34,0.1)',
+        fill: true, tension: 0.3, pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8b949e' } } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+        y: { min: 0, grid: { color: '#30363d' }, ticks: { color: '#8b949e', callback: v => v + '%' } }
+      }
+    }
+  });
+}
+
+function renderTurnsTable(turns) {
+  const tbody = document.querySelector('#turnsTable tbody');
+  tbody.innerHTML = turns.map(t => `
+    <tr>
+      <td>${t.turn_index}</td>
+      <td>${fmtTokens(t.input_tokens)}</td>
+      <td>${fmtTokens(t.output_tokens)}</td>
+      <td>${(t.input_tokens || 0) > 0 ? fmtPct((t.cache_read || 0) / t.input_tokens * 100) : '-'}</td>
+      <td>${fmtCost(t.cost_total)}</td>
+      <td>${fmtTime(t.timestamp)}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('dropArea').addEventListener('click', () => {
+  document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  if (e.target.files[0]) loadDb(e.target.files[0]);
+});
+
+const dropArea = document.getElementById('dropArea');
+dropArea.addEventListener('dragover', (e) => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropArea.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadDb(file);
+});
+</script>
+</body>
+</html>
