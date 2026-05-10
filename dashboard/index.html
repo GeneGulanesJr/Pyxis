@@ -229,6 +229,20 @@ tbody tr:hover td { background: var(--surface-hover); }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .drop-area { padding: 2.5rem 2rem; }
 }
+/* Turn content modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--radius-lg);width:90%;max-width:720px;max-height:80vh;display:flex;flex-direction:column;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border);}
+.modal-header h3{font-size:0.85rem;color:var(--text-dim);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;}
+.modal-tabs{display:flex;gap:0.5rem;}
+.modal-tab{padding:0.3rem 0.75rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:0.78rem;cursor:pointer;font-family:inherit;}
+.modal-tab.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+.modal-close{background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;padding:0.25rem;line-height:1;}
+.modal-close:hover{color:var(--text);}
+.modal-body{padding:1.25rem;overflow-y:auto;flex:1;font-size:0.88rem;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word;}
+.modal-body code,.modal-body pre{font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,0.06);padding:0.15em 0.4em;border-radius:4px;font-size:0.82em;}
+.modal-body pre{padding:0.75rem 1rem;overflow-x:auto;}
 </style>
 </head>
 <body>
@@ -763,5 +777,18 @@ da.addEventListener('dragover',e=>{e.preventDefault();da.classList.add('drag-ove
 da.addEventListener('dragleave',()=>da.classList.remove('drag-over'));
 da.addEventListener('drop',e=>{e.preventDefault();da.classList.remove('drag-over');if(e.dataTransfer.files[0])loadDb(e.dataTransfer.files[0]);});
 </script>
+<div class="modal-overlay" id="turnModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Turn</h3>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-role="user">User</button>
+        <button class="modal-tab" data-role="assistant">Assistant</button>
+      </div>
+      <button class="modal-close" id="modalClose">&times;</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
 </body>
 </html>
