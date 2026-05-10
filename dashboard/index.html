@@ -770,6 +770,50 @@ function renderTurnsTable(turns,model){
   }).join('');
 }
 
+// Turn content modal
+let currentModalTurn=null;
+function openTurnModal(turn){
+  currentModalTurn=turn;
+  document.getElementById('modalTitle').textContent='Turn '+turn.turn_index;
+  const hasUser=!!turn.user_content;
+  const hasAssistant=!!turn.assistant_content;
+  document.querySelectorAll('.modal-tab').forEach(tab=>{
+    const role=tab.dataset.role;
+    tab.classList.toggle('active',role==='user'?hasUser:!hasUser&&role==='assistant');
+  });
+  showModalContent(turn,hasUser?'user':'assistant');
+  document.getElementById('turnModal').classList.add('active');
+  document.addEventListener('keydown',closeModalOnEsc);
+}
+function showModalContent(turn,role){
+  const body=document.getElementById('modalBody');
+  const content=role==='user'?turn.user_content:turn.assistant_content;
+  body.textContent=content||'(empty)';
+}
+function closeTurnModal(){
+  document.getElementById('turnModal').classList.remove('active');
+  document.removeEventListener('keydown',closeModalOnEsc);
+  currentModalTurn=null;
+}
+function closeModalOnEsc(e){if(e.key==='Escape')closeTurnModal();}
+
+document.getElementById('modalClose').addEventListener('click',closeTurnModal);
+document.getElementById('turnModal').addEventListener('click',e=>{if(e.target.id==='turnModal')closeTurnModal();});
+document.querySelectorAll('.modal-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    if(currentModalTurn) showModalContent(currentModalTurn,tab.dataset.role);
+  });
+});
+document.getElementById('turnsTable').addEventListener('click',e=>{
+  const row=e.target.closest('tr.turn-row');
+  if(!row) return;
+  const idx=parseInt(row.dataset.turn);
+  const turn=allTurns.find(t=>t.turn_index===idx);
+  if(turn&&(turn.user_content||turn.assistant_content)) openTurnModal(turn);
+});
+
 document.getElementById('dropArea').addEventListener('click',()=>document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])loadDb(e.target.files[0]);});
 const da=document.getElementById('dropArea');
