@@ -798,22 +798,7 @@ function closeTurnModal(){
 }
 function closeModalOnEsc(e){if(e.key==='Escape')closeTurnModal();}
 
-document.getElementById('modalClose').addEventListener('click',closeTurnModal);
-document.getElementById('turnModal').addEventListener('click',e=>{if(e.target.id==='turnModal')closeTurnModal();});
-document.querySelectorAll('.modal-tab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));
-    tab.classList.add('active');
-    if(currentModalTurn) showModalContent(currentModalTurn,tab.dataset.role);
-  });
-});
-document.getElementById('turnsTable').addEventListener('click',e=>{
-  const row=e.target.closest('tr.turn-row');
-  if(!row) return;
-  const idx=parseInt(row.dataset.turn);
-  const turn=allTurns.find(t=>t.turn_index===idx);
-  if(turn) openTurnModal(turn);
-});
+// Modal listeners initialized in inline script after modal HTML
 
 document.getElementById('dropArea').addEventListener('click',()=>document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])loadDb(e.target.files[0]);});
@@ -835,5 +820,23 @@ da.addEventListener('drop',e=>{e.preventDefault();da.classList.remove('drag-over
     <div class="modal-body" id="modalBody"></div>
   </div>
 </div>
+<script>
+document.getElementById('modalClose').addEventListener('click',closeTurnModal);
+document.getElementById('turnModal').addEventListener('click',e=>{if(e.target.id==='turnModal')closeTurnModal();});
+document.querySelectorAll('.modal-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    if(currentModalTurn) showModalContent(currentModalTurn,tab.dataset.role);
+  });
+});
+document.getElementById('turnsTable').addEventListener('click',e=>{
+  const row=e.target.closest('tr.turn-row');
+  if(!row) return;
+  const idx=parseInt(row.dataset.turn);
+  const turn=allTurns.find(t=>t.turn_index===idx);
+  if(turn) openTurnModal(turn);
+});
+</script>
 </body>
 </html>
