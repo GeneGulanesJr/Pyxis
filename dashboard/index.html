@@ -171,17 +171,17 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
 .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .chart-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 1.25rem; min-height: 320px;
+  padding: 1.25rem; height: 320px;
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   transition: border-color 0.25s;
 }
 .chart-card:hover { border-color: rgba(99,102,241,0.15); }
 .chart-card h3 { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-.chart-card canvas { width: 100% !important; }
+.chart-card canvas { width: 100% !important; height: 100% !important; }
 
 .chart-card-full {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 1.25rem; min-height: 350px; margin-bottom: 2.5rem;
+  padding: 1.25rem; height: 350px; margin-bottom: 2.5rem;
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
   transition: border-color 0.25s;
 }
@@ -274,6 +274,13 @@ tbody tr:hover { background: transparent; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .drop-area { padding: 2.5rem 2rem; }
 }
+.cache-bar { display:inline-flex; height:14px; border-radius:3px; overflow:hidden; min-width:40px; max-width:80px; vertical-align:middle; }
+.cache-bar .cb-cached { background:#10b981; height:100%; }
+.cache-bar .cb-new { background:#6366f1; height:100%; }
+.delta-up { color:#f59e0b; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.delta-down { color:#10b981; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.delta-zero { color:#64748b; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+
 </style>
 </head>
 <body>
@@ -313,13 +320,17 @@ tbody tr:hover { background: transparent; }
     </div>
     <div class="charts-grid animate-in-delay-2">
       <div class="chart-card"><h3>Cost Over Sessions</h3><canvas id="costChart"></canvas></div>
-      <div class="chart-card"><h3>Cache Hit Rate</h3><canvas id="cacheChart"></canvas></div>
+      <div class="chart-card"><h3>Cache vs New Tokens</h3><canvas id="cacheChart"></canvas></div>
+    </div>
+    <div class="section animate-in-delay-2">
+      <div class="section-header"><h2>Token Composition Over Sessions</h2></div>
+      <div class="chart-card-full"><canvas id="tokenCompChart"></canvas></div>
     </div>
     <div class="section animate-in-delay-3">
       <div class="section-header"><h2>Sessions</h2><span class="badge" id="sessionCount"></span></div>
       <div class="session-table-wrap">
         <table id="sessionsTable">
-          <thead><tr><th>Date</th><th>Model</th><th>Turns</th><th>Input</th><th>Output</th><th>Cache</th><th>Cost</th><th>Duration</th></tr></thead>
+          <thead><tr><th>Date</th><th>Model</th><th>Turns</th><th>Input</th><th>New</th><th>Cached</th><th>Cache %</th><th>Output</th><th>Cost</th><th>Duration</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -343,8 +354,8 @@ tbody tr:hover { background: transparent; }
       <div class="chart-card-full" style="min-height:380px"><canvas id="segmentsPerTurnChart"></canvas></div>
     </div>
     <div class="charts-grid">
-      <div class="chart-card"><h3>Token Usage</h3><canvas id="tokensPerTurnChart"></canvas></div>
-      <div class="chart-card"><h3>Cache Hit Rate</h3><canvas id="cachePerTurnChart"></canvas></div>
+      <div class="chart-card"><h3>Token Usage (Cached vs New)</h3><canvas id="tokensPerTurnChart"></canvas></div>
+      <div class="chart-card"><h3>Cache Hit Rate & New Tokens</h3><canvas id="cachePerTurnChart"></canvas></div>
     </div>
     <div class="charts-grid">
       <div class="chart-card"><h3>Cost Accumulation</h3><canvas id="costPerTurnChart"></canvas></div>
@@ -354,7 +365,7 @@ tbody tr:hover { background: transparent; }
       <div class="section-header"><h2>Turns</h2></div>
       <div class="session-table-wrap">
         <table id="turnsTable">
-          <thead><tr><th>Turn</th><th>Input</th><th>Output</th><th>Cache</th><th>Cost</th><th>Time</th></tr></thead>
+          <thead><tr><th>Turn</th><th>Input</th><th>New</th><th>Cached</th><th>Cache %</th><th>Δ New</th><th>Output</th><th>Cost</th><th>Time</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -454,7 +465,7 @@ function renderOverview(){
     <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="label">Avg Cost/Session</div><div class="value">${fmtCost((agg.total_cost||0)/Math.max(agg.sessions||1,1))}</div></div>
   `;
 
-  renderTopSegments(); renderCostChart(); renderCacheChart(); renderSessionsTable();
+  renderTopSegments(); renderCostChart(); renderCacheChart(); renderTokenCompChart(); renderSessionsTable();
 }
 
 function renderTopSegments(){
@@ -495,32 +506,58 @@ function renderCostChart(){
 function renderCacheChart(){
   const data=query(`SELECT s.id,s.started_at,sum(t.cache_read) as cache,sum(t.input_tokens) as input FROM sessions s JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
   if(!data.length)return;
-  const pcts=data.map(r=>r.input>0?((r.cache||0)/r.input)*100:0);
+  const cached=data.map(r=>r.cache||0);
+  const newT=data.map(r=>Math.max(0,(r.input||0)-(r.cache||0)));
   charts.cache=new Chart(document.getElementById('cacheChart').getContext('2d'),{
-    type:'line',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[{
-      label:'Cache Hit %',data:pcts,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.06)',
-      fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#10b981',borderWidth:2
-    }]},
+    type:'bar',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[
+      {label:'Cached',data:cached,backgroundColor:'rgba(16,185,129,0.6)',borderColor:'#10b981',borderWidth:1,borderRadius:4,stack:'stack0'},
+      {label:'New',data:newT,backgroundColor:'rgba(99,102,241,0.6)',borderColor:'#6366f1',borderWidth:1,borderRadius:4,stack:'stack0'},
+    ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},
-      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{min:0,max:100,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>v+'%'}}}
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+    }
+  });
+}
+
+function renderTokenCompChart(){
+  const data=query(`SELECT s.id,s.started_at,sum(t.cache_read) as cache,sum(t.input_tokens) as input,sum(t.output_tokens) as output FROM sessions s JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
+  if(!data.length)return;
+  const cached=data.map(r=>r.cache||0);
+  const newT=data.map(r=>Math.max(0,(r.input||0)-(r.cache||0)));
+  const output=data.map(r=>r.output||0);
+  charts.tokenComp=new Chart(document.getElementById('tokenCompChart').getContext('2d'),{
+    type:'line',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[
+      {label:'Output',data:output,borderColor:'#ec4899',backgroundColor:'rgba(236,72,153,0.08)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#ec4899',borderWidth:2,order:3},
+      {label:'New Input',data:newT,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.15)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#6366f1',borderWidth:2,order:2},
+      {label:'Cached Input',data:cached,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.15)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#10b981',borderWidth:2,order:1},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
     }
   });
 }
 
 function renderSessionsTable(){
   sessionsData=query(`SELECT s.id,s.model,s.context_window,s.cwd,s.started_at,s.ended_at,count(t.id) as turns,coalesce(sum(t.input_tokens),0) as total_input,coalesce(sum(t.output_tokens),0) as total_output,coalesce(sum(t.cache_read),0) as total_cache,coalesce(sum(t.cost_total),0) as total_cost FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at DESC`);
-  document.querySelector('#sessionsTable tbody').innerHTML=sessionsData.map(s=>`
-    <tr onclick="showSessionDetail('${s.id}')">
+  document.querySelector('#sessionsTable tbody').innerHTML=sessionsData.map(s=>{
+    const newT=Math.max(0,s.total_input-s.total_cache);
+    const cpct=s.total_input>0?(s.total_cache/s.total_input*100):0;
+    const npct=s.total_input>0?(newT/s.total_input*100):0;
+    return `<tr onclick="showSessionDetail('${s.id}')">
       <td><span style="font-weight:500">${fmtDate(s.started_at)}</span> <span class="mono" style="color:var(--text-dim)">${fmtTime(s.started_at)}</span></td>
       <td><span class="model-badge">${s.model||'-'}</span></td>
       <td>${s.turns||0}</td>
       <td class="mono">${fmtTokens(s.total_input)}</td>
+      <td class="mono" style="color:#818cf8">${fmtTokens(newT)}</td>
+      <td class="mono" style="color:#10b981">${fmtTokens(s.total_cache)}</td>
+      <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td class="mono">${fmtTokens(s.total_output)}</td>
-      <td class="mono">${s.total_input>0?fmtPct((s.total_cache/s.total_input)*100):'-'}</td>
       <td class="mono">${fmtCost(s.total_cost)}</td>
       <td>${fmtDuration(s.started_at,s.ended_at)}</td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function renderSessionDetail(sessionId){
@@ -545,11 +582,13 @@ function renderSessionDetail(sessionId){
   const tca=turns.reduce((s,t)=>s+(t.cache_read||0),0);
   const cp=ti>0?(tca/ti)*100:0;
 
+  const tn=ti-tca;
   document.getElementById('detailCards').innerHTML=`
-    <div class="stat-card"><div class="icon-wrap cyan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Input</div><div class="value">${fmtTokens(ti)}</div></div>
+    <div class="stat-card"><div class="icon-wrap cyan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Input</div><div class="value">${fmtTokens(ti)}</div><div class="sub">${fmtPct(cp)} cached</div></div>
+    <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></div><div class="label">New Tokens</div><div class="value">${fmtTokens(tn)}</div><div class="sub">${ti>0?fmtPct(tn/ti*100):'-'}</div></div>
+    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cached Tokens</div><div class="value">${fmtTokens(tca)}</div><div class="sub">${fmtPct(cp)}</div></div>
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Output</div><div class="value">${fmtTokens(to)}</div></div>
     <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Cost</div><div class="value">${fmtCost(tc)}</div></div>
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cache</div><div class="value">${fmtPct(cp)}</div></div>
     <div class="stat-card"><div class="icon-wrap pink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="label">Duration</div><div class="value">${fmtDuration(session.started_at,session.ended_at)}</div></div>
     <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Turns</div><div class="value">${turns.length}</div></div>
   `;
@@ -605,20 +644,33 @@ function renderSegmentsPerTurn(turns){
 
 function renderTokensPerTurn(turns){
   const labels=turns.map(t=>'T'+t.turn_index);
+  const cached=turns.map(t=>t.cache_read||0);
+  const newT=turns.map(t=>Math.max(0,(t.input_tokens||0)-(t.cache_read||0)));
   charts.tokensPerTurn=new Chart(document.getElementById('tokensPerTurnChart').getContext('2d'),{
-    type:'line',data:{labels,datasets:[
-      {label:'Input',data:turns.map(t=>t.input_tokens||0),borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.05)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#6366f1',borderWidth:2},
-      {label:'Output',data:turns.map(t=>t.output_tokens||0),borderColor:'#ec4899',backgroundColor:'rgba(236,72,153,0.05)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#ec4899',borderWidth:2},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}}
+    type:'bar',data:{labels,datasets:[
+      {label:'Cached',data:cached,backgroundColor:'rgba(16,185,129,0.6)',borderColor:'#10b981',borderWidth:1,borderRadius:3,stack:'input'},
+      {label:'New',data:newT,backgroundColor:'rgba(99,102,241,0.6)',borderColor:'#6366f1',borderWidth:1,borderRadius:3,stack:'input'},
+      {label:'Output',data:turns.map(t=>t.output_tokens||0),type:'line',borderColor:'#ec4899',pointRadius:2.5,pointBackgroundColor:'#ec4899',tension:0.4,borderWidth:2,fill:false},
+    ]},options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:CHART_TICK},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+    }
   });
 }
 
 function renderCachePerTurn(turns){
   const labels=turns.map(t=>'T'+t.turn_index);
   const pcts=turns.map(t=>(t.input_tokens||0)>0?((t.cache_read||0)/t.input_tokens)*100:0);
+  const newT=turns.map(t=>Math.max(0,(t.input_tokens||0)-(t.cache_read||0)));
   charts.cachePerTurn=new Chart(document.getElementById('cachePerTurnChart').getContext('2d'),{
-    type:'line',data:{labels,datasets:[{label:'Cache %',data:pcts,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.06)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#10b981',borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{min:0,max:100,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>v+'%'}}}}
+    type:'line',data:{labels,datasets:[
+      {label:'Cache %',data:pcts,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.08)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#10b981',borderWidth:2,yAxisID:'y'},
+      {label:'New Tokens',data:newT,type:'bar',backgroundColor:'rgba(99,102,241,0.4)',borderColor:'#6366f1',borderWidth:1,borderRadius:3,yAxisID:'y1'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>c.dataset.label==='Cache %'?`${c.dataset.label}: ${c.raw.toFixed(1)}%`:`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',min:0,max:100,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#10b981',callback:v=>v+'%'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#6366f1',callback:v=>fmtTokens(v)}}}
+    }
   });
 }
 
@@ -639,14 +691,33 @@ function renderCostPerTurn(turns,cw){
 }
 
 function renderTurnsTable(turns){
-  document.querySelector('#turnsTable tbody').innerHTML=turns.map(t=>`<tr>
-    <td style="font-weight:600">T${t.turn_index}</td>
-    <td class="mono">${fmtTokens(t.input_tokens)}</td>
-    <td class="mono">${fmtTokens(t.output_tokens)}</td>
-    <td class="mono">${(t.input_tokens||0)>0?fmtPct((t.cache_read||0)/t.input_tokens*100):'-'}</td>
-    <td class="mono">${fmtCost(t.cost_total)}</td>
-    <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
-  </tr>`).join('');
+  let prevNew=null;
+  document.querySelector('#turnsTable tbody').innerHTML=turns.map(t=>{
+    const inp=t.input_tokens||0;
+    const cached=t.cache_read||0;
+    const newT=Math.max(0,inp-cached);
+    const cpct=inp>0?(cached/inp*100):0;
+    const npct=inp>0?(newT/inp*100):0;
+    let deltaHtml='';
+    if(prevNew!==null){
+      const d=newT-prevNew;
+      if(d>0)deltaHtml=`<span class="delta-up">+${fmtTokens(d)}</span>`;
+      else if(d<0)deltaHtml=`<span class="delta-down">${fmtTokens(d)}</span>`;
+      else deltaHtml='<span class="delta-zero">0</span>';
+    } else { deltaHtml='<span class="delta-zero">-</span>'; }
+    prevNew=newT;
+    return `<tr>
+      <td style="font-weight:600">T${t.turn_index}</td>
+      <td class="mono">${fmtTokens(inp)}</td>
+      <td class="mono" style="color:#818cf8">${fmtTokens(newT)}</td>
+      <td class="mono" style="color:#10b981">${fmtTokens(cached)}</td>
+      <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
+      <td>${deltaHtml}</td>
+      <td class="mono">${fmtTokens(t.output_tokens)}</td>
+      <td class="mono">${fmtCost(t.cost_total)}</td>
+      <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
+    </tr>`;
+  }).join('');
 }
 
 document.getElementById('dropArea').addEventListener('click',()=>document.getElementById('fileInput').click());

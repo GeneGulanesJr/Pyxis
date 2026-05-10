@@ -1,7 +1,9 @@
 /**
- * PiStats — Context window attribution bar for Pi Agent.
+ * Pẙxis — Context window attribution bar for Pi Agent.
  * Shows a color-coded stats bar in the TUI footer and
- * registers /pistats command for detailed breakdown.
+ * registers /pẙxis command for detailed breakdown.
+ *
+ * pýxis (πυξίς) — a small box for keeping precious things.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -10,6 +12,10 @@ import { computeAttribution, type AttributionResult, type Usage } from "./attrib
 import { renderBar, renderInfoLine, renderLegend } from "./bar-renderer.js";
 import { formatTokens, formatCost } from "./format.js";
 import * as db from "./db.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createServer } from "node:http";
+import { execSync } from "node:child_process";
 
 const RENDER_THROTTLE_MS = 1000;
 
@@ -182,8 +188,120 @@ export default function (pi: ExtensionAPI) {
     updateFooter(_ctx);
   });
 
+  let dashboardServer: ReturnType<typeof createServer> | null = null;
+  let dashboardPort: number = 0;
+
+  function openDashboard(ctx: any): void {
+    try {
+      // Ensure DB is saved before serving
+      db.flushDb();
+
+      const dbPath = db.getDbPath();
+      const homeDir = process.env.HOME || require("node:os").homedir();
+      const htmlPath = join(homeDir, "Documents", "GulanesKorp", "PiStats", "dashboard", "index.html");
+
+      // Try to find the dashboard HTML
+      let html: string;
+      try {
+        html = readFileSync(htmlPath, "utf-8");
+      } catch {
+        // Fallback: look relative to the extension
+        const fallbackPath = join(import.meta.dirname || __dirname, "dashboard.html");
+        try {
+          html = readFileSync(fallbackPath, "utf-8");
+        } catch {
+          ctx.ui.notify("Could not find dashboard HTML. Checked: " + htmlPath, "info");
+          return;
+        }
+      }
+
+      // Embed the DB directly into the HTML as base64 — no fetch, no race conditions
+      const dbBuffer = readFileSync(dbPath);
+      const dbBase64 = dbBuffer.toString('base64');
+
+      // Strip CDN sql.js/chart.js scripts — we'll serve locally to avoid version mismatches
+      html = html.replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/sql\.js[^>]*><\/script>/, '');
+
+      // Pre-load local sql.js assets (matching versions)
+      const sqlDistDir = join(import.meta.dirname || __dirname, 'node_modules', 'sql.js', 'dist');
+      const sqlJs = readFileSync(join(sqlDistDir, 'sql-wasm.js'));
+      const wasmBinary = readFileSync(join(sqlDistDir, 'sql-wasm.wasm'));
+
+      // Bridge script: load sql.js from our server, then decode embedded DB
+      const bridgeScript = `
+<script src="/__assets__/sql-wasm.js"></script>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+  initSqlJs({ locateFile: function(f) { return '/__assets__/' + f; } }).then(function(SQL) {
+    try {
+      var raw = atob('${dbBase64}');
+      var buf = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+      db = new SQL.Database(buf);
+      document.getElementById('dropzone').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      showOverview();
+    } catch(e) { console.error('PiStats auto-load failed:', e); }
+  });
+});
+</script>`;
+      html = html.replace('</head>', bridgeScript + '\n</head>');
+
+      // Close existing server if running
+      if (dashboardServer) {
+        try { dashboardServer.close(); } catch {}
+      }
+
+      // Create HTTP server — serve HTML + sql.js assets
+      dashboardServer = createServer((req, res) => {
+        const url = req.url || '/';
+        if (url.startsWith('/__assets__/sql-wasm.js')) {
+          res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Length': sqlJs.length });
+          res.end(sqlJs);
+        } else if (url.startsWith('/__assets__/') && url.endsWith('.wasm')) {
+          res.writeHead(200, { 'Content-Type': 'application/wasm', 'Content-Length': wasmBinary.length });
+          res.end(wasmBinary);
+        } else {
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html) });
+          res.end(html);
+        }
+      });
+
+      // Find available port
+      dashboardPort = 9832 + Math.floor(Math.random() * 100);
+      dashboardServer.listen(dashboardPort, () => {
+        const url = `http://localhost:${dashboardPort}`;
+        ctx.ui.notify(`PiStats dashboard: ${url}`, "info");
+
+        // Open in browser
+        try {
+          if (process.platform === "darwin") {
+            execSync(`open "${url}"`, { stdio: "ignore" });
+          } else if (process.platform === "win32") {
+            execSync(`start "" "${url}"`, { stdio: "ignore" });
+          } else {
+            execSync(`xdg-open "${url}"`, { stdio: "ignore" });
+          }
+        } catch {
+          // Browser open failed — URL already shown above
+        }
+      });
+
+      // Auto-close after 10 minutes
+      setTimeout(() => {
+        if (dashboardServer) {
+          try { dashboardServer.close(); } catch {}
+          dashboardServer = null;
+        }
+      }, 10 * 60 * 1000);
+
+    } catch (e) {
+      ctx.ui.notify("Failed to open dashboard: " + (e as Error).message, "info");
+    }
+  }
+
   pi.registerCommand("pistats", {
-    description: "Show token attribution legend and detailed breakdown",
+    description: "Open PiStats dashboard in browser",
     handler: async (args, ctx) => {
       const trimmedArgs = (args || "").trim();
 
@@ -199,6 +317,23 @@ export default function (pi: ExtensionAPI) {
         computeFromContext(ctx);
         updateFooter(ctx);
         ctx.ui.notify("PiStats bar enabled", "info");
+        return;
+      }
+
+      if (trimmedArgs === "bar") {
+        // Legacy: show TUI legend
+        computeFromContext(ctx);
+        if (!currentAttribution) {
+          ctx.ui.notify("No attribution data yet — send a message first", "info");
+          return;
+        }
+        const lines = renderLegend(
+          currentAttribution.segments,
+          currentAttribution.freeTokens,
+          currentAttribution.contextWindow,
+          currentAttribution.totalInput,
+        );
+        ctx.ui.notify(lines.join("\n"), "info");
         return;
       }
 
@@ -240,7 +375,6 @@ export default function (pi: ExtensionAPI) {
       if (trimmedArgs.startsWith("session")) {
         const sessionId = trimmedArgs.slice(7).trim();
         if (!sessionId) {
-          // Show current session ID
           ctx.ui.notify(`Current session: ${currentSessionId}`, "info");
           return;
         }
@@ -260,20 +394,8 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      // Default: show legend with current values
-      computeFromContext(ctx);
-      if (!currentAttribution) {
-        ctx.ui.notify("No attribution data yet — send a message first", "info");
-        return;
-      }
-
-      const lines = renderLegend(
-        currentAttribution.segments,
-        currentAttribution.freeTokens,
-        currentAttribution.contextWindow,
-        currentAttribution.totalInput,
-      );
-      ctx.ui.notify(lines.join("\n"), "info");
+      // Default: open dashboard in browser
+      openDashboard(ctx);
     },
   });
 }

@@ -1,5 +1,5 @@
 /**
- * PiStats segment definitions.
+ * Pẙxis segment definitions.
  * Each segment has a fixed ANSI 256-color code, a name, and a description.
  * Used for both bar rendering and /pistats legend output.
  */

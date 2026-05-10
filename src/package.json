@@ -1,7 +1,7 @@
 {
-  "name": "pistats",
+  "name": "pyxis",
   "version": "0.1.0",
-  "private": true,
+  "description": "Context window attribution bar for the Pi coding agent — color-coded token breakdown in your TUI footer.",
   "type": "module",
   "dependencies": {
     "sql.js": "^1.11.0"

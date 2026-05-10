@@ -88,6 +88,16 @@ function saveDb(): void {
   }
 }
 
+/** Get the database file path */
+export function getDbPath(): string {
+  return DB_PATH;
+}
+
+/** Flush the database to disk */
+export function flushDb(): void {
+  saveDb();
+}
+
 /** Close the database and save */
 export async function closeDb(): Promise<void> {
   if (db) {
