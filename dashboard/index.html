@@ -5,41 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PiStats Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/sql-wasm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <style>
 :root {
-  --bg: #06080f;
-  --bg-gradient: linear-gradient(135deg, #06080f 0%, #0c1220 50%, #0a0e1a 100%);
-  --surface: rgba(15, 23, 42, 0.6);
-  --surface-solid: #0f172a;
-  --surface-hover: rgba(30, 41, 59, 0.5);
-  --glass: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-dim: #64748b;
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-glow: rgba(99, 102, 241, 0.15);
-  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
-  --success: #10b981;
-  --success-glow: rgba(16, 185, 129, 0.15);
-  --warning: #f59e0b;
-  --warning-glow: rgba(245, 158, 11, 0.15);
-  --error: #ef4444;
-  --cyan: #06b6d4;
-  --pink: #ec4899;
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-  --shadow: 0 4px 16px rgba(0,0,0,0.3), 0 1px 3px rgba(0,0,0,0.2);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2);
-  --shadow-glow: 0 0 40px var(--accent-glow);
+  --bg: #0f0f0f;
+  --surface: rgba(255,255,255,0.02);
+  --surface-solid: #1a1a1a;
+  --surface-hover: rgba(255,255,255,0.04);
+  --border: rgba(226,226,226,0.35);
+  --text: #faf9f6;
+  --text-secondary: #afaeac;
+  --text-dim: #868584;
+  --success: #4caf50;
+  --warning: #ff9800;
+  --error: #a94442;
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 50px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -48,60 +33,40 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { min-height: 100vh; background: var(--bg-gradient); background-attachment: fixed; }
-::selection { background: var(--accent); color: white; }
+body { min-height: 100vh; background: var(--bg); }
+::selection { background: var(--text-dim); color: var(--text); }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
-code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: rgba(99,102,241,0.12); padding: 0.15em 0.4em; border-radius: 4px; color: var(--accent-light); }
+code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: rgba(255,255,255,0.06); padding: 0.15em 0.4em; border-radius: 4px; color: var(--text-secondary); }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 20px var(--accent-glow); } 50% { box-shadow: 0 0 40px var(--accent-glow), 0 0 60px rgba(99,102,241,0.08); } }
-@keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-
-.animate-in { animation: fadeIn 0.4s ease-out both; }
-.animate-in-delay-1 { animation: fadeIn 0.4s ease-out 0.05s both; }
-.animate-in-delay-2 { animation: fadeIn 0.4s ease-out 0.1s both; }
-.animate-in-delay-3 { animation: fadeIn 0.4s ease-out 0.15s both; }
+/* No animations — Warp is calm and instant */
+.animate-in, .animate-in-delay-1, .animate-in-delay-2, .animate-in-delay-3 { opacity: 1; transform: none; }
 
 #dropzone {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 100vh; padding: 2rem; text-align: center;
-  position: relative;
 }
-#dropzone::before {
-  content: ''; position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
-  width: 600px; height: 600px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
-.logo { font-size: 2.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.25rem; }
-.logo span { background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 #dropzone .subtitle { color: var(--text-secondary); font-size: 1.05rem; margin-bottom: 2.5rem; font-weight: 400; }
 .drop-area {
   position: relative;
-  border: 1.5px dashed rgba(99,102,241,0.3); border-radius: var(--radius-xl); padding: 3.5rem 5rem;
-  cursor: pointer; transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3.5rem 5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
   background: var(--surface);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-}
-.drop-area::before {
-  content: ''; position: absolute; inset: -1px; border-radius: var(--radius-xl);
-  background: linear-gradient(135deg, rgba(99,102,241,0.1), transparent, rgba(139,92,246,0.1));
-  z-index: -1; opacity: 0; transition: opacity 0.3s;
 }
 .drop-area:hover, .drop-area.drag-over {
-  border-color: var(--accent); background: rgba(15,23,42,0.8);
-  box-shadow: var(--shadow-glow); transform: translateY(-2px);
+  border-color: var(--text-dim);
+  background: var(--surface-hover);
 }
-.drop-area:hover::before, .drop-area.drag-over::before { opacity: 1; }
 .drop-icon {
-  width: 56px; height: 56px; margin: 0 auto 1rem; border-radius: var(--radius);
-  background: var(--accent-gradient); display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; animation: float 3s ease-in-out infinite;
+  width: 56px; height: 56px; border-radius: var(--radius);
+  background: var(--surface-solid);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; color: var(--text-secondary);
 }
 .drop-area p { margin: 0; font-size: 0.95rem; color: var(--text-secondary); }
 .drop-area .hint { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
@@ -109,14 +74,15 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
 
 #dashboard { display: none; }
 .nav {
-  display: flex; align-items: center; gap: 1rem; padding: 0.75rem 2rem;
-  border-bottom: 1px solid var(--border); background: rgba(6,8,15,0.8);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.75rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(15,15,15,0.95);
   position: sticky; top: 0; z-index: 10;
 }
 .nav-brand { display: flex; align-items: center; gap: 0.6rem; }
-.nav-logo { width: 28px; height: 28px; border-radius: 7px; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; }
-.nav h1 { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; }
+.nav-logo { width: 28px; height: 28px; border-radius: 7px; background: var(--surface-solid); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--text); }
+.nav h1 { font-size: 0.95rem; font-weight: 500; letter-spacing: -0.02em; color: var(--text); }
 .nav .breadcrumb { color: var(--text-dim); font-size: 0.8rem; }
 .nav .breadcrumb .sep { margin: 0 0.3rem; }
 .nav .breadcrumb .current { color: var(--text-secondary); }
@@ -124,19 +90,20 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
 .nav .stats { color: var(--text-dim); font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; }
 .nav-btn {
   display: inline-flex; align-items: center; gap: 0.4rem;
-  background: var(--glass); border: 1px solid var(--glass-border); color: var(--text-secondary);
+  background: transparent; border: none; color: var(--text-secondary);
   padding: 0.4rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.78rem;
-  font-family: 'Inter', sans-serif; font-weight: 500; transition: all 0.2s;
+  font-weight: 500; transition: color 0.2s;
 }
-.nav-btn:hover { border-color: var(--accent); color: var(--accent-light); background: var(--accent-glow); }
+.nav-btn:hover { color: var(--text); text-decoration: underline; }
 
-.container { max-width: 1280px; margin: 0 auto; padding: 2rem; }
-.section { margin-bottom: 2.5rem; animation: fadeIn 0.4s ease-out both; }
+.container { max-width: 1500px; margin: 0 auto; padding: 3rem; }
+.section { margin-bottom: 6rem; }
 .section-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-.section-header h2 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.section-header h2 { font-size: 1rem; font-weight: 500; letter-spacing: -0.01em; }
 .section-header .badge {
   font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 99px;
-  background: var(--accent-glow); color: var(--accent-light); font-weight: 500;
+  background: rgba(255,255,255,0.05); color: var(--text-secondary); font-weight: 500;
+  border: 1px solid var(--border);
 }
 
 .stats-grid {
@@ -145,81 +112,65 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
 }
 .stat-card {
   position: relative; overflow: hidden;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 1.25rem 1.25rem 1rem; transition: all 0.25s;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 1.25rem 1.25rem 1rem; transition: border-color 0.25s;
 }
-.stat-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: var(--accent-gradient); opacity: 0; transition: opacity 0.25s;
-}
-.stat-card:hover { border-color: rgba(99,102,241,0.2); transform: translateY(-1px); box-shadow: var(--shadow); }
-.stat-card:hover::before { opacity: 1; }
+.stat-card:hover { border-color: rgba(226,226,226,0.5); }
+.stat-card::before { display: none; }
 .stat-card .icon-wrap {
   width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  font-size: 0.9rem; margin-bottom: 0.75rem;
+  font-size: 0.9rem; margin-bottom: 0.75rem; background: rgba(255,255,255,0.06); color: var(--text-secondary);
 }
-.stat-card .icon-wrap.blue { background: rgba(99,102,241,0.12); color: var(--accent-light); }
-.stat-card .icon-wrap.green { background: rgba(16,185,129,0.12); color: var(--success); }
-.stat-card .icon-wrap.amber { background: rgba(245,158,11,0.12); color: var(--warning); }
-.stat-card .icon-wrap.cyan { background: rgba(6,182,212,0.12); color: var(--cyan); }
-.stat-card .icon-wrap.pink { background: rgba(236,72,153,0.12); color: var(--pink); }
+.stat-card .icon-wrap.green { color: var(--success); }
+.stat-card .icon-wrap.amber { color: var(--warning); }
 .stat-card .label { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.6px; font-weight: 500; }
-.stat-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 0.2rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat-card .value { font-size: 1.6rem; font-weight: 400; margin-top: 0.2rem; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .stat-card .sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 0.15rem; }
 
 .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-.chart-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 1.25rem; height: 320px;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+.chart-card, .chart-card-full {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   transition: border-color 0.25s;
 }
-.chart-card:hover { border-color: rgba(99,102,241,0.15); }
-.chart-card h3 { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-.chart-card canvas { width: 100% !important; height: 100% !important; }
-
-.chart-card-full {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 1.25rem; height: 350px; margin-bottom: 2.5rem;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  transition: border-color 0.25s;
+.chart-card:hover, .chart-card-full:hover { border-color: rgba(226,226,226,0.3); }
+.chart-card h3, .chart-card-full h3 {
+  font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem;
+  font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;
 }
-.chart-card-full:hover { border-color: rgba(99,102,241,0.15); }
-.chart-card-full h3 { font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+.chart-card canvas, .chart-card-full canvas { width: 100% !important; height: 100% !important; }
 
 table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
 thead th {
   padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border);
   color: var(--text-dim); font-weight: 500; font-size: 0.72rem; text-transform: uppercase;
-  letter-spacing: 0.6px; background: rgba(15,23,42,0.4);
+  letter-spacing: 0.6px; background: rgba(255,255,255,0.03);
   position: sticky; top: 0;
 }
 thead th:first-child { border-radius: var(--radius-sm) 0 0 0; }
 thead th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
 tbody td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); transition: background 0.15s; }
 tbody tr { cursor: pointer; transition: background 0.15s; }
-tbody tr:hover td { background: rgba(99,102,241,0.04); }
-tbody tr:hover { background: transparent; }
-.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.82em; }
+tbody tr:hover td { background: var(--surface-hover); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.82em; color: var(--text-secondary); }
 
 .segment-bar {
   display: flex; height: 32px; border-radius: var(--radius); overflow: hidden;
-  margin: 0.75rem 0; box-shadow: var(--shadow-sm);
+  margin: 0.75rem 0;
 }
 .segment-bar .seg {
-  height: 100%; transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+  height: 100%; transition: all 0.4s ease;
   position: relative; min-width: 2px;
 }
-.segment-bar .seg:hover { opacity: 0.85; filter: brightness(1.1); }
+.segment-bar .seg:hover { opacity: 0.85; }
 
 .legend { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.75rem; }
 .legend-item {
   display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.73rem;
   color: var(--text-secondary); padding: 0.2rem 0.55rem; border-radius: 99px;
-  background: var(--glass); border: 1px solid var(--glass-border); transition: all 0.2s;
+  background: var(--surface); border: 1px solid var(--border);
 }
-.legend-item:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); }
+.legend-item:hover { border-color: var(--text-dim); background: rgba(255,255,255,0.05); }
 .legend-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
 .legend-value { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 0.7em; }
 
@@ -229,39 +180,40 @@ tbody tr:hover { background: transparent; }
   cursor: pointer; transition: color 0.2s; text-decoration: none;
   padding: 0.4rem 0; margin-bottom: 1.5rem;
 }
-.back-link:hover { color: var(--accent-light); text-decoration: none; }
+.back-link:hover { color: var(--text); text-decoration: none; }
 .back-link svg { transition: transform 0.2s; }
 .back-link:hover svg { transform: translateX(-2px); }
 
 .session-table-wrap {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  overflow: hidden; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
 }
 
 .toast {
   position: fixed; bottom: 2rem; right: 2rem; z-index: 100;
-  background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0.85rem 1.25rem; font-size: 0.85rem;
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-lg); display: none;
-  animation: scaleIn 0.2s ease-out;
+  background: var(--surface-solid); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 0.85rem 1.25rem; font-size: 0.85rem;
+  box-shadow: none; display: none;
 }
-.toast.error { border-color: rgba(239,68,68,0.3); color: var(--error); }
+.toast.error { border-color: var(--error); color: var(--error); }
 .toast.error::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--error); border-radius: var(--radius) var(--radius) 0 0; }
 
-.detail-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  margin-bottom: 1.5rem; gap: 1rem;
-}
-.detail-title { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+.detail-title { font-size: 1.15rem; font-weight: 500; letter-spacing: -0.02em; color: var(--text); }
 .detail-meta { display: flex; gap: 1.5rem; margin-top: 0.35rem; }
 .detail-meta span { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.3rem; }
 
 .model-badge {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.25rem 0.65rem; border-radius: 99px; font-size: 0.72rem; font-weight: 500;
-  background: rgba(99,102,241,0.1); color: var(--accent-light); border: 1px solid rgba(99,102,241,0.15);
+  background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border);
 }
+
+.cache-bar { display:inline-flex; height:14px; border-radius:4px; overflow:hidden; min-width:40px; max-width:80px; vertical-align:middle; }
+.cache-bar .cb-cached { background:var(--success); height:100%; }
+.cache-bar .cb-new { background:var(--text-secondary); height:100%; }
+.delta-up { color:var(--warning); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.delta-down { color:var(--success); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.delta-zero { color:var(--text-dim); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
 
 @media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
@@ -274,22 +226,15 @@ tbody tr:hover { background: transparent; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .drop-area { padding: 2.5rem 2rem; }
 }
-.cache-bar { display:inline-flex; height:14px; border-radius:3px; overflow:hidden; min-width:40px; max-width:80px; vertical-align:middle; }
-.cache-bar .cb-cached { background:#10b981; height:100%; }
-.cache-bar .cb-new { background:#6366f1; height:100%; }
-.delta-up { color:#f59e0b; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
-.delta-down { color:#10b981; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
-.delta-zero { color:#64748b; font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
-
 </style>
 </head>
 <body>
 
 <div id="dropzone">
-  <div class="logo"><span>Pi</span>Stats</div>
+  <div class="logo" style="font-size:2.5rem;font-weight:400;letter-spacing:-0.03em;margin-bottom:0.25rem;color:var(--text)">PiStats</div>
   <p class="subtitle">Visualize your Pi Agent usage</p>
   <div class="drop-area" id="dropArea">
-    <div class="drop-icon">&#128202;</div>
+    <div class="drop-icon">📊</div>
     <p>Drop your <code>pistats.db</code> here</p>
     <p class="hint">or click to browse</p>
     <input type="file" id="fileInput" accept=".db" style="display:none">
@@ -300,7 +245,7 @@ tbody tr:hover { background: transparent; }
 <div id="dashboard">
   <nav class="nav">
     <div class="nav-brand">
-      <div class="nav-logo">&#128202;</div>
+      <div class="nav-logo">📊</div>
       <h1>PiStats</h1>
     </div>
     <span class="breadcrumb" id="breadcrumb"></span>
@@ -313,20 +258,20 @@ tbody tr:hover { background: transparent; }
   </nav>
 
   <div id="overview" class="container">
-    <div class="stats-grid animate-in" id="summaryCards"></div>
-    <div class="section animate-in-delay-1">
+    <div class="stats-grid" id="summaryCards"></div>
+    <div class="section">
       <div class="section-header"><h2>Top Segment Consumers</h2></div>
       <div class="chart-card-full"><canvas id="topSegmentsChart"></canvas></div>
     </div>
-    <div class="charts-grid animate-in-delay-2">
+    <div class="charts-grid">
       <div class="chart-card"><h3>Cost Over Sessions</h3><canvas id="costChart"></canvas></div>
       <div class="chart-card"><h3>Cache vs New Tokens</h3><canvas id="cacheChart"></canvas></div>
     </div>
-    <div class="section animate-in-delay-2">
+    <div class="section">
       <div class="section-header"><h2>Token Composition Over Sessions</h2></div>
       <div class="chart-card-full"><canvas id="tokenCompChart"></canvas></div>
     </div>
-    <div class="section animate-in-delay-3">
+    <div class="section">
       <div class="section-header"><h2>Sessions</h2><span class="badge" id="sessionCount"></span></div>
       <div class="session-table-wrap">
         <table id="sessionsTable">
@@ -376,14 +321,16 @@ tbody tr:hover { background: transparent; }
 <div class="toast" id="toast"></div>
 
 <script>
+// Warm, muted Warp-inspired segment colors
 const SEGMENT_COLORS = {
-  system:'#6366f1', agentsMd:'#22c55e', skills:'#06b6d4', fileReads:'#84cc16',
-  bash:'#f59e0b', edits:'#f97316', browser:'#ec4899', memory:'#14b8a6',
-  webSearch:'#8b5cf6', design:'#a855f7', otherTools:'#6b7280',
-  thinking:'#e11d48', toolCallArgs:'#ea580c', userMsgs:'#38bdf8',
-  asstText:'#a5b4fc', images:'#f43f5e', compaction:'#c084fc',
-  branchSummary:'#fb923c', extMsgs:'#fbbf24', free:'#334155',
+  system:'#7a6fa0', agentsMd:'#5a8a5a', skills:'#3a8a8a', fileReads:'#8a955a',
+  bash:'#b0894a', edits:'#b0794a', browser:'#a07080', memory:'#3a8a8a',
+  webSearch:'#7a6fa0', design:'#7a6fa0', otherTools:'#6a6a6a',
+  thinking:'#a04040', toolCallArgs:'#b0894a', userMsgs:'#5a7a9a',
+  asstText:'#7a6fa0', images:'#a04040', compaction:'#7a6fa0',
+  branchSummary:'#b0894a', extMsgs:'#b0894a', free:'#1a1a1a',
 };
+
 const SEGMENT_NAMES = {
   system:'System', agentsMd:'AGENTS.md', skills:'Skills', fileReads:'File Reads',
   bash:'Bash', edits:'Edits', browser:'Browser', memory:'Memory',
@@ -394,12 +341,8 @@ const SEGMENT_NAMES = {
 };
 
 let db = null, charts = {}, sessionsData = [];
-let pricingMap = {};  // modelId -> {prompt, completion, cache_read, cache_write}
+let pricingMap = {};
 let pricingLoaded = false;
-
-// --- OpenRouter Pricing Engine ---
-// Fetches live pricing from OpenRouter API (no auth needed)
-// Fuzzy-matches Pi model names to OpenRouter model IDs
 
 async function loadPricing() {
   try {
@@ -419,87 +362,55 @@ async function loadPricing() {
       }
     }
     pricingLoaded = true;
-    console.log('[PiStats] Pricing loaded:', Object.keys(pricingMap).length, 'models');
-  } catch (e) {
-    console.warn('[PiStats] Pricing fetch failed:', e);
-  }
+  } catch (e) { console.warn('[PiStats] Pricing fetch failed:', e); }
 }
 
-// Fuzzy match a Pi model name to an OpenRouter model ID
-// e.g. "glm-5.1:cloud" -> "z-ai/glm-5.1"
-//      "glm-5-turbo" -> "z-ai/glm-5-turbo"
-//      "claude-sonnet-4-20250514" -> "anthropic/claude-sonnet-4-20250514"
 function findPricing(modelName) {
   if (!modelName || !pricingLoaded) return null;
   const normalized = modelName.toLowerCase().replace(/:cloud$/, '').replace(/:local$/, '');
-
-  // 1. Exact match
   if (pricingMap[normalized]) return pricingMap[normalized];
-
-  // 2. Try common provider prefixes
   const providers = ['openai/', 'anthropic/', 'google/', 'meta-llama/', 'z-ai/', 'mistralai/', 'deepseek/', 'cohere/', 'perplexity/', 'x-ai/'];
   for (const prefix of providers) {
     const candidate = prefix + normalized;
     if (pricingMap[candidate]) return pricingMap[candidate];
   }
-
-  // 3. Fuzzy: strip date suffixes, variant markers
-  // e.g. "claude-3-5-sonnet-20241022" matches "anthropic/claude-3-5-sonnet-20241022"
   const ids = Object.keys(pricingMap);
   for (const id of ids) {
     const bare = id.split('/').pop();
-    if (bare === normalized || bare === normalized.replace(/-[0-9]{8}$/, '')) {
-      return pricingMap[id];
-    }
+    if (bare === normalized || bare === normalized.replace(/-[0-9]{8}$/, '')) return pricingMap[id];
   }
-
-  // 4. Substring match (model name contained in OpenRouter ID)
   for (const id of ids) {
     const bare = id.split('/').pop();
-    if (bare.includes(normalized) || normalized.includes(bare)) {
-      return pricingMap[id];
-    }
+    if (bare.includes(normalized) || normalized.includes(bare)) return pricingMap[id];
   }
-
   return null;
 }
 
-// Calculate cost for a turn or session
 function calcCost(model, inputTokens, outputTokens, cacheRead, cacheWrite) {
   const p = findPricing(model);
   if (!p) return 0;
   const newTokens = Math.max(0, (inputTokens || 0) - (cacheRead || 0));
-  const promptCost = newTokens * p.prompt;
-  const cacheCost = (cacheRead || 0) * p.cache_read;
-  const cacheWriteCost = (cacheWrite || 0) * p.cache_write;
-  const outputCost = (outputTokens || 0) * p.completion;
-  return promptCost + cacheCost + cacheWriteCost + outputCost;
+  return newTokens * p.prompt + (cacheRead || 0) * p.cache_read + (cacheWrite || 0) * p.cache_write + (outputTokens || 0) * p.completion;
 }
 
-// Calculate cache savings (what it would have cost without cache vs with cache)
 function calcCacheSavings(model, inputTokens, cacheRead) {
   const p = findPricing(model);
   if (!p || !cacheRead || cacheRead <= 0) return 0;
-  const fullPrice = cacheRead * p.prompt;
-  const cachePrice = cacheRead * p.cache_read;
-  return fullPrice - cachePrice;
+  return cacheRead * p.prompt - cacheRead * p.cache_read;
 }
 
-// Get model display name with pricing indicator
-function modelPriceLabel(model) {
-  const p = findPricing(model);
-  if (!p) return model || '-';
-  const inpPerM = (p.prompt * 1e6).toFixed(2);
-  const outPerM = (p.completion * 1e6).toFixed(2);
-  return model + ' · $' + inpPerM + '/$' + outPerM + ' per M';
-}
-
+// Chart config — Warp palette: muted, warm, restrained
 const CHART_GRID = { color: 'rgba(255,255,255,0.04)' };
-const CHART_TICK = { color: '#64748b', font: { family: "'JetBrains Mono', monospace", size: 10 } };
+const CHART_TICK = { color: '#8a8f98', font: { family: "'JetBrains Mono', monospace", size: 10 } };
 const CHART_TOOLTIP = {
-  backgroundColor: 'rgba(15,23,42,0.95)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
-  titleColor: '#e2e8f0', bodyColor: '#94a3b8', padding: 10, cornerRadius: 8,
-  titleFont: { family: "'Inter', sans-serif", weight: '600', size: 12 },
+  backgroundColor: 'rgba(15,15,15,0.98)',
+  borderColor: 'rgba(226,226,226,0.15)',
+  borderWidth: 1,
+  titleColor: '#faf9f6',
+  bodyColor: '#afaeac',
+  padding: 10,
+  cornerRadius: 6,
+  titleFont: { family: "'Inter', sans-serif", weight: '500', size: 12 },
   bodyFont: { family: "'JetBrains Mono', monospace", size: 11 },
 };
 
@@ -531,7 +442,6 @@ async function loadDb(file){
     if(!t[0]||t[0].cnt<3){toast('Invalid pistats.db',true);return;}
     document.getElementById('dropzone').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    // Load pricing in parallel, then render
     loadPricing().then(() => showOverview());
   }catch(e){toast('Failed: '+e.message,true);console.error(e);}
 }
@@ -553,7 +463,6 @@ function showSessionDetail(id){
 
 function renderOverview(){
   const agg=queryOne(`SELECT count(DISTINCT s.id) as sessions, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, count(DISTINCT t.id) as total_turns FROM sessions s LEFT JOIN turns t ON s.id=t.session_id`);
-  // Calculate real costs from pricing
   const sessionCosts=query(`SELECT s.id, s.model, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cache_read),0) as total_cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id`);
   let totalCost=0, totalCacheSavings=0;
   sessionCosts.forEach(s => {
@@ -564,12 +473,12 @@ function renderOverview(){
   document.getElementById('sessionCount').textContent=`${agg.sessions||0}`;
 
   document.getElementById('summaryCards').innerHTML=`
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Sessions</div><div class="value">${agg.sessions||0}</div></div>
-    <div class="stat-card"><div class="icon-wrap cyan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Total Input</div><div class="value">${fmtTokens(agg.total_input)}</div></div>
-    <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Total Output</div><div class="value">${fmtTokens(agg.total_output)}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Sessions</div><div class="value">${agg.sessions||0}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Total Input</div><div class="value">${fmtTokens(agg.total_input)}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Total Output</div><div class="value">${fmtTokens(agg.total_output)}</div></div>
     <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Total Cost</div><div class="value">${fmtCost(totalCost)}</div><div class="sub">${totalCacheSavings>0?'Saved '+fmtCost(totalCacheSavings)+' via cache':''}</div></div>
-    <div class="stat-card"><div class="icon-wrap pink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M18 11a2 2 0 0 1 2 2v2"/><path d="M22 13a2 2 0 0 1-2 2"/></svg></div><div class="label">Turns</div><div class="value">${agg.total_turns||0}</div></div>
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="label">Avg Cost/Session</div><div class="value">${fmtCost(totalCost/Math.max(agg.sessions||1,1))}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M18 11a2 2 0 0 1 2 2v2"/><path d="M22 13a2 2 0 0 1-2 2"/></svg></div><div class="label">Turns</div><div class="value">${agg.total_turns||0}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="label">Avg Cost/Session</div><div class="value">${fmtCost(totalCost/Math.max(agg.sessions||1,1))}</div></div>
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cache Savings</div><div class="value">${fmtCost(totalCacheSavings)}</div><div class="sub">${totalCacheSavings>0?fmtPct(totalCacheSavings/(totalCost+totalCacheSavings)*100)+' of gross cost':''}</div></div>
   `;
 
@@ -585,7 +494,7 @@ function renderTopSegments(){
     type:'bar',data:{labels,datasets:[{data:data.map(r=>r.total_tokens),backgroundColor:colors.map(c=>c+'cc'),borderColor:colors,borderWidth:1,borderRadius:6,barThickness:22}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>fmtTokens(c.raw)+' tokens'}}},
-      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}},y:{grid:{display:false},ticks:{color:'#94a3b8',font:{family:"'Inter',sans-serif",size:11}}}}
+      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}},y:{grid:{display:false},ticks:{color:'#afaeac',font:{family:"'Inter',sans-serif",size:11}}}}
     }
   });
 }
@@ -598,15 +507,15 @@ function renderCostChart(){
   let cum=0; const cumCosts=costs.map(c=>{cum+=c;return cum;});
   charts.cost=new Chart(document.getElementById('costChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
-      {label:'Per Session',data:costs,backgroundColor:'rgba(99,102,241,0.5)',borderColor:'#6366f1',borderWidth:1,borderRadius:5,yAxisID:'y'},
-      {label:'Cumulative',data:cumCosts,type:'line',borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.05)',fill:true,pointRadius:2.5,pointBackgroundColor:'#f59e0b',tension:0.4,borderWidth:2,yAxisID:'y1'},
+      {label:'Per Session',data:costs,backgroundColor:'rgba(250,249,246,0.4)',borderColor:'#faf9f6',borderWidth:1,borderRadius:5,yAxisID:'y'},
+      {label:'Cumulative',data:cumCosts,type:'line',borderColor:'#ff9800',backgroundColor:'rgba(255,152,0,0.05)',fill:true,pointRadius:2.5,pointBackgroundColor:'#ff9800',tension:0.4,borderWidth:2,yAxisID:'y1'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},
       scales:{
         x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},
-        y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtCost(v)}},
-        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>fmtCost(v)}}
+        y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtCost(v)}},
+        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#ff9800',callback:v=>fmtCost(v)}}
       }
     }
   });
@@ -619,12 +528,12 @@ function renderCacheChart(){
   const newT=data.map(r=>Math.max(0,(r.input||0)-(r.cache||0)));
   charts.cache=new Chart(document.getElementById('cacheChart').getContext('2d'),{
     type:'bar',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[
-      {label:'Cached',data:cached,backgroundColor:'rgba(16,185,129,0.6)',borderColor:'#10b981',borderWidth:1,borderRadius:4,stack:'stack0'},
-      {label:'New',data:newT,backgroundColor:'rgba(99,102,241,0.6)',borderColor:'#6366f1',borderWidth:1,borderRadius:4,stack:'stack0'},
+      {label:'Cached',data:cached,backgroundColor:'rgba(76,175,80,0.6)',borderColor:'#4caf50',borderWidth:1,borderRadius:4,stack:'stack0'},
+      {label:'New',data:newT,backgroundColor:'rgba(250,249,246,0.3)',borderColor:'#faf9f6',borderWidth:1,borderRadius:4,stack:'stack0'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtTokens(v)}}}}
     }
   });
 }
@@ -637,13 +546,13 @@ function renderTokenCompChart(){
   const output=data.map(r=>r.output||0);
   charts.tokenComp=new Chart(document.getElementById('tokenCompChart').getContext('2d'),{
     type:'line',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[
-      {label:'Output',data:output,borderColor:'#ec4899',backgroundColor:'rgba(236,72,153,0.08)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#ec4899',borderWidth:2,order:3},
-      {label:'New Input',data:newT,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.15)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#6366f1',borderWidth:2,order:2},
-      {label:'Cached Input',data:cached,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.15)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#10b981',borderWidth:2,order:1},
+      {label:'Output',data:output,borderColor:'#b0794a',backgroundColor:'rgba(255,152,0,0.06)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#b0794a',borderWidth:2,order:3},
+      {label:'New Input',data:newT,borderColor:'#faf9f6',backgroundColor:'rgba(250,249,246,0.1)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#faf9f6',borderWidth:2,order:2},
+      {label:'Cached Input',data:cached,borderColor:'#4caf50',backgroundColor:'rgba(76,175,80,0.1)',fill:true,tension:0.4,pointRadius:2.5,pointBackgroundColor:'#4caf50',borderWidth:2,order:1},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtTokens(v)}}}
     }
   });
 }
@@ -661,11 +570,11 @@ function renderSessionsTable(){
       <td><span class="model-badge">${s.model||'-'}</span></td>
       <td>${s.turns||0}</td>
       <td class="mono">${fmtTokens(s.total_input)}</td>
-      <td class="mono" style="color:#818cf8">${fmtTokens(newT)}</td>
-      <td class="mono" style="color:#10b981">${fmtTokens(s.total_cache)}</td>
+      <td class="mono" style="color:var(--text-secondary)">${fmtTokens(newT)}</td>
+      <td class="mono" style="color:var(--success)">${fmtTokens(s.total_cache)}</td>
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td class="mono">${fmtTokens(s.total_output)}</td>
-      <td class="mono">${fmtCost(cost)}${savings>0?'<div style="font-size:0.65rem;color:#10b981">save '+fmtCost(savings)+'</div>':''}</td>
+      <td class="mono">${fmtCost(cost)}${savings>0?'<div style="font-size:0.65rem;color:var(--success)">save '+fmtCost(savings)+'</div>':''}</td>
       <td>${fmtDuration(s.started_at,s.ended_at)}</td>
     </tr>`;
   }).join('');
@@ -696,13 +605,13 @@ function renderSessionDetail(sessionId){
 
   const tn=ti-tca;
   document.getElementById('detailCards').innerHTML=`
-    <div class="stat-card"><div class="icon-wrap cyan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Input</div><div class="value">${fmtTokens(ti)}</div><div class="sub">${fmtPct(cp)} cached</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Input</div><div class="value">${fmtTokens(ti)}</div><div class="sub">${fmtPct(cp)} cached</div></div>
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></div><div class="label">New Tokens</div><div class="value">${fmtTokens(tn)}</div><div class="sub">${ti>0?fmtPct(tn/ti*100):'-'}</div></div>
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cached Tokens</div><div class="value">${fmtTokens(tca)}</div><div class="sub">${fmtPct(cp)}</div></div>
-    <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Output</div><div class="value">${fmtTokens(to)}</div></div>
+    <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cached Tokens</div><div class="value">${fmtTokens(tca)}</div><div class="sub">${fmtPct(cp)}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Output</div><div class="value">${fmtTokens(to)}</div></div>
     <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Cost</div><div class="value">${fmtCost(tc)}</div><div class="sub">${cacheSavings>0?'Saved '+fmtCost(cacheSavings)+' via cache':''}</div></div>
-    <div class="stat-card"><div class="icon-wrap pink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="label">Duration</div><div class="value">${fmtDuration(session.started_at,session.ended_at)}</div></div>
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Turns</div><div class="value">${turns.length}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="label">Duration</div><div class="value">${fmtDuration(session.started_at,session.ended_at)}</div></div>
+    <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Turns</div><div class="value">${turns.length}</div></div>
   `;
 
   renderContextBar(turns,session.context_window);
@@ -748,8 +657,8 @@ function renderSegmentsPerTurn(turns){
   charts.segmentsPerTurn=new Chart(document.getElementById('segmentsPerTurnChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[...ids].map(id=>({label:SEGMENT_NAMES[id]||id,data:parsed.map(p=>p.map[id]||0),backgroundColor:(SEGMENT_COLORS[id]||'#666')+'cc'}))},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'right',labels:{color:'#64748b',boxWidth:10,font:{size:9}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{stacked:true,grid:CHART_GRID,ticks:CHART_TICK},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{position:'right',labels:{color:'#868584',boxWidth:10,font:{size:9}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:CHART_TICK},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtTokens(v)}}}
     }
   });
 }
@@ -760,12 +669,12 @@ function renderTokensPerTurn(turns){
   const newT=turns.map(t=>Math.max(0,(t.input_tokens||0)-(t.cache_read||0)));
   charts.tokensPerTurn=new Chart(document.getElementById('tokensPerTurnChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
-      {label:'Cached',data:cached,backgroundColor:'rgba(16,185,129,0.6)',borderColor:'#10b981',borderWidth:1,borderRadius:3,stack:'input'},
-      {label:'New',data:newT,backgroundColor:'rgba(99,102,241,0.6)',borderColor:'#6366f1',borderWidth:1,borderRadius:3,stack:'input'},
-      {label:'Output',data:turns.map(t=>t.output_tokens||0),type:'line',borderColor:'#ec4899',pointRadius:2.5,pointBackgroundColor:'#ec4899',tension:0.4,borderWidth:2,fill:false},
+      {label:'Cached',data:cached,backgroundColor:'rgba(76,175,80,0.6)',borderColor:'#4caf50',borderWidth:1,borderRadius:3,stack:'input'},
+      {label:'New',data:newT,backgroundColor:'rgba(250,249,246,0.3)',borderColor:'#faf9f6',borderWidth:1,borderRadius:3,stack:'input'},
+      {label:'Output',data:turns.map(t=>t.output_tokens||0),type:'line',borderColor:'#ff9800',pointRadius:2.5,pointBackgroundColor:'#ff9800',tension:0.4,borderWidth:2,fill:false},
     ]},options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{stacked:true,grid:CHART_GRID,ticks:CHART_TICK},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:CHART_TICK},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtTokens(v)}}}
     }
   });
 }
@@ -776,12 +685,12 @@ function renderCachePerTurn(turns){
   const newT=turns.map(t=>Math.max(0,(t.input_tokens||0)-(t.cache_read||0)));
   charts.cachePerTurn=new Chart(document.getElementById('cachePerTurnChart').getContext('2d'),{
     type:'line',data:{labels,datasets:[
-      {label:'Cache %',data:pcts,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.08)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#10b981',borderWidth:2,yAxisID:'y'},
-      {label:'New Tokens',data:newT,type:'bar',backgroundColor:'rgba(99,102,241,0.4)',borderColor:'#6366f1',borderWidth:1,borderRadius:3,yAxisID:'y1'},
+      {label:'Cache %',data:pcts,borderColor:'#4caf50',backgroundColor:'rgba(76,175,80,0.08)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#4caf50',borderWidth:2,yAxisID:'y'},
+      {label:'New Tokens',data:newT,type:'bar',backgroundColor:'rgba(250,249,246,0.4)',borderColor:'#faf9f6',borderWidth:1,borderRadius:3,yAxisID:'y1'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>c.dataset.label==='Cache %'?`${c.dataset.label}: ${c.raw.toFixed(1)}%`:`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',min:0,max:100,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#10b981',callback:v=>v+'%'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#6366f1',callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,mode:'index',callbacks:{label:c=>c.dataset.label==='Cache %'?`${c.dataset.label}: ${c.raw.toFixed(1)}%`:`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
+      scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',min:0,max:100,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#4caf50',callback:v=>v+'%'}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#faf9f6',callback:v=>fmtTokens(v)}}}
     }
   });
 }
@@ -792,14 +701,14 @@ function renderCostPerTurn(turns,model,cw){
   let cum=0;const cumC=costs.map(c=>{cum+=c;return cum;});
   charts.costPerTurn=new Chart(document.getElementById('costPerTurnChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
-      {label:'Turn',data:costs,backgroundColor:'rgba(99,102,241,0.45)',borderColor:'#6366f1',borderWidth:1,borderRadius:4,yAxisID:'y'},
-      {label:'Cumulative',data:cumC,type:'line',borderColor:'#f59e0b',pointRadius:2,tension:0.4,borderWidth:2,yAxisID:'y1'},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtCost(v)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>fmtCost(v)}}}}
+      {label:'Turn',data:costs,backgroundColor:'rgba(250,249,246,0.4)',borderColor:'#faf9f6',borderWidth:1,borderRadius:4,yAxisID:'y'},
+      {label:'Cumulative',data:cumC,type:'line',borderColor:'#ff9800',pointRadius:2,tension:0.4,borderWidth:2,yAxisID:'y1'},
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtCost(v)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#ff9800',callback:v=>fmtCost(v)}}}}
   });
   const fillPcts=turns.map(t=>cw>0?((t.input_tokens||0)/cw)*100:0);
   charts.fillPerTurn=new Chart(document.getElementById('fillPerTurnChart').getContext('2d'),{
-    type:'line',data:{labels,datasets:[{label:'Fill %',data:fillPcts,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.06)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#f59e0b',borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{min:0,grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>v+'%'}}}}
+    type:'line',data:{labels,datasets:[{label:'Fill %',data:fillPcts,borderColor:'#ff9800',backgroundColor:'rgba(255,152,0,0.06)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#ff9800',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{min:0,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>v+'%'}}}}
   });
 }
 
@@ -820,10 +729,10 @@ function renderTurnsTable(turns,model){
     } else { deltaHtml='<span class="delta-zero">-</span>'; }
     prevNew=newT;
     return `<tr>
-      <td style="font-weight:600">T${t.turn_index}</td>
+      <td style="font-weight:500">T${t.turn_index}</td>
       <td class="mono">${fmtTokens(inp)}</td>
-      <td class="mono" style="color:#818cf8">${fmtTokens(newT)}</td>
-      <td class="mono" style="color:#10b981">${fmtTokens(cached)}</td>
+      <td class="mono" style="color:var(--text-secondary)">${fmtTokens(newT)}</td>
+      <td class="mono" style="color:var(--success)">${fmtTokens(cached)}</td>
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td>${deltaHtml}</td>
       <td class="mono">${fmtTokens(t.output_tokens)}</td>
