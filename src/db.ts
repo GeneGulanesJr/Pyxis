@@ -158,21 +158,21 @@ export async function insertTurn(
   turnIndex: number,
   entryId: string | null,
   attribution: AttributionResult,
+  userContent: string | null = null,
+  assistantContent: string | null = null,
 ): Promise<void> {
   try {
     const database = await getDb();
     const timestamp = new Date().toISOString();
-    // cacheReadPct is already relative to totalInput (which includes cacheRead),
-    // so this recovers the raw cacheRead token count accurately.
     const cacheRead = attribution.cacheReadPct > 0
       ? Math.round(attribution.totalInput * attribution.cacheReadPct / 100)
       : 0;
 
     database.run(
-      `INSERT OR REPLACE INTO turns (session_id, turn_index, entry_id, input_tokens, output_tokens, cache_read, cache_write, cost_total, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO turns (session_id, turn_index, entry_id, input_tokens, output_tokens, cache_read, cache_write, cost_total, timestamp, user_content, assistant_content)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [sessionId, turnIndex, entryId, attribution.totalInput, attribution.totalOutput,
-       cacheRead, 0, attribution.totalCost, timestamp]
+       cacheRead, 0, attribution.totalCost, timestamp, userContent, assistantContent]
     );
 
     // Get the turn ID
