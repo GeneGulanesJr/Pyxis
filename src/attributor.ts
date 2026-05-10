@@ -178,13 +178,13 @@ export function computeAttribution(
     }
   }
 
+  // Calibrate: scale estimates proportionally to match total input (cached + non-cached)
+  const totalEstimate = Array.from(segmentEstimates.values()).reduce((a, b) => a + b, 0);
+
   // Total input includes both non-cached and cache-read tokens.
   // Some providers (e.g. Anthropic) report cacheRead separately from input,
   // so usage.input alone is only the non-cached portion.
   const totalInput = (usage.input + usage.cacheRead) || totalEstimate || 0;
-
-  // Calibrate: scale estimates proportionally to match total input (cached + non-cached)
-  const totalEstimate = Array.from(segmentEstimates.values()).reduce((a, b) => a + b, 0);
   if (totalInput > 0 && totalEstimate > 0) {
     const scale = totalInput / totalEstimate;
     for (const [id, est] of segmentEstimates) {

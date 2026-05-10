@@ -81,7 +81,7 @@ export default function (pi: ExtensionAPI) {
           try {
             computeFromContext(ctx);
             if (!currentAttribution) {
-              return [theme.dim("PiStats: no data yet")];
+              return [theme?.dim?.("PiStats: no data yet") ?? "PiStats: no data yet"];
             }
             const bar = renderBar(currentAttribution.segments, currentAttribution.freeTokens, w, currentAttribution.totalInput, currentAttribution.contextWindow);
             const info = renderInfoLine(
@@ -97,7 +97,7 @@ export default function (pi: ExtensionAPI) {
             );
             return [...bar, info];
           } catch (e) {
-            return [theme.dim("PiStats: error rendering")];
+            return [theme?.dim?.("PiStats: error rendering") ?? "PiStats: error rendering"];
           }
         },
       };
