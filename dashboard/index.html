@@ -382,12 +382,6 @@ tbody tr:hover td { background: var(--surface-hover); }
     <div id="detailHeader" class="detail-header"></div>
     <div class="stats-grid" id="detailCards"></div>
     <div class="section">
-      <div class="section-header"><h2>Turn Timeline</h2></div>
-      <div class="session-table-wrap">
-        <div class="turn-timeline" id="turnTimeline"></div>
-      </div>
-    </div>
-    <div class="section">
       <div class="section-header"><h2>Context Window Composition</h2><span class="badge" id="contextBadge">last turn</span></div>
       <div id="contextBar" class="segment-bar"></div>
       <div id="contextLegend" class="legend"></div>
@@ -416,12 +410,9 @@ tbody tr:hover td { background: var(--surface-hover); }
       </div>
     </div>
     <div class="section">
-      <div class="section-header"><h2>Turns</h2></div>
+      <div class="section-header"><h2>Turn Timeline</h2></div>
       <div class="session-table-wrap">
-        <table id="turnsTable">
-          <thead><tr><th>Turn</th><th>Input</th><th>New</th><th>Cached</th><th>Cache %</th><th>Δ New</th><th>Output</th><th>Cost</th><th>Time</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <div class="turn-timeline" id="turnTimeline"></div>
       </div>
     </div>
   </div>
@@ -804,7 +795,6 @@ function renderSessionDetail(sessionId){
   renderTokensPerTurn(turns);
   renderCachePerTurn(turns);
   renderCostPerTurn(turns,session.model,session.context_window);
-  renderTurnsTable(turns,session.model);
 }
 
 function renderContextBar(turns,cw){
@@ -906,6 +896,7 @@ function cwdToProject(cwd) {
 }
 let allTurns=[];
 function renderTurnTimeline(turns,model){
+  allTurns=turns;
   const container=document.getElementById('turnTimeline');
   if(!container) return;
   let prevNew=null;
@@ -935,37 +926,6 @@ function renderTurnTimeline(turns,model){
       </div>
       <div class="timeline-side">${fmtCost(cost)}</div>
     </div>`;
-  }).join('');
-}
-
-function renderTurnsTable(turns,model){
-  allTurns=turns;
-  let prevNew=null;
-  document.querySelector('#turnsTable tbody').innerHTML=turns.map(t=>{
-    const inp=t.input_tokens||0;
-    const cached=t.cache_read||0;
-    const newT=Math.max(0,inp-cached);
-    const cpct=inp>0?(cached/inp*100):0;
-    const npct=inp>0?(newT/inp*100):0;
-    let deltaHtml='';
-    if(prevNew!==null){
-      const d=newT-prevNew;
-      if(d>0)deltaHtml=`<span class="delta-up">+${fmtTokens(d)}</span>`;
-      else if(d<0)deltaHtml=`<span class="delta-down">${fmtTokens(d)}</span>`;
-      else deltaHtml='<span class="delta-zero">0</span>';
-    } else { deltaHtml='<span class="delta-zero">-</span>'; }
-    prevNew=newT;
-    return `<tr class="turn-row" data-turn="${t.turn_index}" style="cursor:pointer">
-      <td style="font-weight:500">T${t.turn_index}</td>
-      <td class="mono">${fmtTokens(inp)}</td>
-      <td class="mono" style="color:var(--text-secondary)">${fmtTokens(newT)}</td>
-      <td class="mono" style="color:var(--success)">${fmtTokens(cached)}</td>
-      <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
-      <td>${deltaHtml}</td>
-      <td class="mono">${fmtTokens(t.output_tokens)}</td>
-      <td class="mono">${fmtCost(calcCost(model,inp,t.output_tokens||0,t.cache_read||0,t.cache_write||0))}</td>
-      <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
-    </tr>`;
   }).join('');
 }
 
@@ -1026,13 +986,6 @@ document.getElementById('detailTabs').addEventListener('click',e=>{
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   tab.classList.add('active');
   document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
-});
-document.getElementById('turnsTable').addEventListener('click',e=>{
-  const row=e.target.closest('tr.turn-row');
-  if(!row) return;
-  const idx=parseInt(row.dataset.turn);
-  const turn=allTurns.find(t=>t.turn_index===idx);
-  if(turn) openTurnModal(turn);
 });
 document.getElementById('turnTimeline').addEventListener('click',e=>{
   const item=e.target.closest('.timeline-item');
