@@ -105,6 +105,13 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
   background: rgba(255,255,255,0.05); color: var(--text-secondary); font-weight: 500;
   border: 1px solid var(--border);
 }
+.narrative-banner {
+  font-size: 0.82rem; color: var(--text-dim); padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border); margin-bottom: 2rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.narrative-banner strong { color: var(--text-secondary); font-weight: 500; }
+.narrative-highlight { color: var(--warning); font-weight: 500; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
 
 .stats-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -186,6 +193,18 @@ tbody tr:hover td { background: var(--surface-hover); }
 .back-link:hover { color: var(--text); text-decoration: none; }
 .back-link svg { transition: transform 0.2s; }
 .back-link:hover svg { transform: translateX(-2px); }
+.detail-nav {
+  display: flex; gap: 0.5rem; margin-top: 1rem;
+}
+.detail-nav-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.4rem 0.85rem; font-size: 0.78rem; color: var(--text-secondary);
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
+}
+.detail-nav-btn:hover { border-color: var(--text-dim); color: var(--text); background: var(--surface-hover); }
+.detail-nav-btn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.detail-nav-btn svg { flex-shrink: 0; }
 
 .session-table-wrap {
   background: var(--surface); border: 1px solid var(--border);
@@ -204,12 +223,36 @@ tbody tr:hover td { background: var(--surface-hover); }
 .detail-title { font-size: 1.15rem; font-weight: 500; letter-spacing: -0.02em; color: var(--text); }
 .detail-meta { display: flex; gap: 1.5rem; margin-top: 0.35rem; }
 .detail-meta span { font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.3rem; }
+.detail-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+.detail-project { font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; }
+.detail-project svg { opacity: 0.5; }
+.detail-duration-big { font-size: 1.4rem; font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.detail-duration-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
 
 .model-badge {
   display: inline-flex; align-items: center; gap: 0.35rem;
   padding: 0.25rem 0.65rem; border-radius: 99px; font-size: 0.72rem; font-weight: 500;
   background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border);
 }
+.project-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.7rem; font-weight: 500;
+  background: rgba(255,255,255,0.03); color: var(--text-dim); border: 1px solid rgba(226,226,226,0.2);
+}
+.project-badge svg { flex-shrink: 0; }
+.model-breakdown {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+.model-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+}
+.model-card .model-name { font-size: 0.82rem; font-weight: 500; color: var(--text); margin-bottom: 0.6rem; }
+.model-card .model-stats { display: flex; flex-direction: column; gap: 0.25rem; }
+.model-card .model-stat { display: flex; justify-content: space-between; font-size: 0.78rem; }
+.model-card .model-stat .ms-label { color: var(--text-dim); }
+.model-card .model-stat .ms-value { font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); font-size: 0.76em; }
 
 .cache-bar { display:inline-flex; height:14px; border-radius:4px; overflow:hidden; min-width:40px; max-width:80px; vertical-align:middle; }
 .cache-bar .cb-cached { background:var(--success); height:100%; }
@@ -217,6 +260,27 @@ tbody tr:hover td { background: var(--surface-hover); }
 .delta-up { color:var(--warning); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
 .delta-down { color:var(--success); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
 .delta-zero { color:var(--text-dim); font-size:0.75rem; font-family:'JetBrains Mono',monospace; }
+.turn-timeline { display: flex; flex-direction: column; gap: 0; }
+.timeline-item { display: grid; grid-template-columns: 48px 1fr auto; gap: 0; border-bottom: 1px solid var(--border); transition: background 0.15s; cursor: pointer; }
+.timeline-item:last-child { border-bottom: none; }
+.timeline-item:hover { background: var(--surface-hover); }
+.timeline-turn { display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 500; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; border-right: 1px solid var(--border); padding: 0.75rem 0; }
+.timeline-content { padding: 0.6rem 1rem; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.timeline-metrics { display: flex; gap: 0.75rem; font-size: 0.72rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+.timeline-metrics .tm-highlight { color: var(--success); }
+.timeline-metrics .tm-cost { color: var(--warning); }
+.timeline-entry { font-size: 0.68rem; color: var(--text-dim); opacity: 0.6; font-family: 'JetBrains Mono', monospace; }
+.timeline-side { display: flex; align-items: center; padding: 0.6rem 1rem; font-size: 0.78rem; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; }
+.detail-tabs { display: flex; gap: 0.35rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+.detail-tab {
+  padding: 0.4rem 0.9rem; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: transparent; color: var(--text-dim); font-size: 0.78rem; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all 0.2s;
+}
+.detail-tab:hover { color: var(--text-secondary); }
+.detail-tab.active { background: var(--surface); border-color: var(--border); color: var(--text); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
 
 @media (max-width: 900px) {
   .charts-grid { grid-template-columns: 1fr; }
@@ -229,20 +293,22 @@ tbody tr:hover td { background: var(--surface-hover); }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .drop-area { padding: 2.5rem 2rem; }
 }
-/* Turn content modal */
+/* Turn content modal — chat convo */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;}
 .modal-overlay.active{display:flex;}
-.modal{background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--radius-lg);width:90%;max-width:720px;max-height:80vh;display:flex;flex-direction:column;}
-.modal-header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-bottom:1px solid var(--border);}
-.modal-header h3{font-size:0.85rem;color:var(--text-dim);font-weight:500;text-transform:uppercase;letter-spacing:0.5px;}
-.modal-tabs{display:flex;gap:0.5rem;}
-.modal-tab{padding:0.3rem 0.75rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:0.78rem;cursor:pointer;font-family:inherit;}
-.modal-tab.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+.modal{background:var(--surface-solid);border:1px solid var(--border);border-radius:var(--radius-lg);width:90%;max-width:780px;max-height:80vh;display:flex;flex-direction:column;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1.25rem;border-bottom:1px solid var(--border);}
+.modal-header h3{font-size:0.85rem;color:var(--text-dim);font-weight:500;letter-spacing:0.01em;}
 .modal-close{background:none;border:none;color:var(--text-dim);font-size:1.2rem;cursor:pointer;padding:0.25rem;line-height:1;}
 .modal-close:hover{color:var(--text);}
-.modal-body{padding:1.25rem;overflow-y:auto;flex:1;font-size:0.88rem;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word;}
-.modal-body code,.modal-body pre{font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,0.06);padding:0.15em 0.4em;border-radius:4px;font-size:0.82em;}
-.modal-body pre{padding:0.75rem 1rem;overflow-x:auto;}
+.modal-body{padding:1.25rem;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:0.75rem;}
+.chat-bubble{max-width:88%;padding:0.75rem 1rem;border-radius:var(--radius-lg);font-size:0.85rem;line-height:1.65;white-space:pre-wrap;word-break:break-word;position:relative;}
+.chat-bubble.user{align-self:flex-end;background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);border-bottom-right-radius:4px;}
+.chat-bubble.assistant{align-self:flex-start;background:rgba(255,255,255,0.03);border:1px solid rgba(226,226,226,0.2);color:var(--text-secondary);border-bottom-left-radius:4px;}
+.chat-role{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:0.35rem;opacity:0.5;}
+.chat-bubble.user .chat-role{color:var(--text);}
+.chat-bubble.assistant .chat-role{color:var(--text-secondary);}
+.chat-empty{font-style:italic;color:var(--text-dim);font-size:0.82rem;}
 </style>
 </head>
 <body>
@@ -276,13 +342,18 @@ tbody tr:hover td { background: var(--surface-hover); }
 
   <div id="overview" class="container">
     <div class="stats-grid" id="summaryCards"></div>
+    <div class="narrative-banner" id="narrativeBanner"></div>
+    <div class="section">
+      <div class="section-header"><h2>By Model</h2></div>
+      <div class="model-breakdown" id="modelBreakdown"></div>
+    </div>
     <div class="section">
       <div class="section-header"><h2>Top Segment Consumers</h2></div>
       <div class="chart-card-full"><canvas id="topSegmentsChart"></canvas></div>
     </div>
     <div class="charts-grid">
       <div class="chart-card"><h3>Cost Over Sessions</h3><canvas id="costChart"></canvas></div>
-      <div class="chart-card"><h3>Cache vs New Tokens</h3><canvas id="cacheChart"></canvas></div>
+      <div class="chart-card"><h3>Cost by Model</h3><canvas id="costByModelChart"></canvas></div>
     </div>
     <div class="section">
       <div class="section-header"><h2>Token Composition Over Sessions</h2></div>
@@ -292,7 +363,7 @@ tbody tr:hover td { background: var(--surface-hover); }
       <div class="section-header"><h2>Sessions</h2><span class="badge" id="sessionCount"></span></div>
       <div class="session-table-wrap">
         <table id="sessionsTable">
-          <thead><tr><th>Date</th><th>Model</th><th>Turns</th><th>Input</th><th>New</th><th>Cached</th><th>Cache %</th><th>Output</th><th>Cost</th><th>Duration</th></tr></thead>
+          <thead><tr><th>Date</th><th>Model</th><th>Project</th><th>Turns</th><th>Input</th><th>New</th><th>Cached</th><th>Cache %</th><th>Output</th><th>Cost</th><th>Duration</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -304,24 +375,45 @@ tbody tr:hover td { background: var(--surface-hover); }
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
       All Sessions
     </a>
+    <div class="detail-nav">
+      <button class="detail-nav-btn" id="prevSession"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>Prev</button>
+      <button class="detail-nav-btn" id="nextSession">Next<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+    </div>
     <div id="detailHeader" class="detail-header"></div>
     <div class="stats-grid" id="detailCards"></div>
+    <div class="section">
+      <div class="section-header"><h2>Turn Timeline</h2></div>
+      <div class="session-table-wrap">
+        <div class="turn-timeline" id="turnTimeline"></div>
+      </div>
+    </div>
     <div class="section">
       <div class="section-header"><h2>Context Window Composition</h2><span class="badge" id="contextBadge">last turn</span></div>
       <div id="contextBar" class="segment-bar"></div>
       <div id="contextLegend" class="legend"></div>
     </div>
-    <div class="section">
-      <div class="section-header"><h2>Segment Distribution Per Turn</h2></div>
-      <div class="chart-card-full" style="min-height:380px"><canvas id="segmentsPerTurnChart"></canvas></div>
+    <div class="detail-tabs" id="detailTabs">
+      <button class="detail-tab active" data-tab="tokens">Tokens</button>
+      <button class="detail-tab" data-tab="cost">Cost</button>
+      <button class="detail-tab" data-tab="segments">Segments</button>
     </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h3>Token Usage (Cached vs New)</h3><canvas id="tokensPerTurnChart"></canvas></div>
-      <div class="chart-card"><h3>Cache Hit Rate & New Tokens</h3><canvas id="cachePerTurnChart"></canvas></div>
+    <div class="tab-panel active" id="panel-tokens">
+      <div class="charts-grid">
+        <div class="chart-card"><h3>Token Usage (Cached vs New)</h3><canvas id="tokensPerTurnChart"></canvas></div>
+        <div class="chart-card"><h3>Cache Hit Rate & New Tokens</h3><canvas id="cachePerTurnChart"></canvas></div>
+      </div>
     </div>
-    <div class="charts-grid">
-      <div class="chart-card"><h3>Cost Accumulation</h3><canvas id="costPerTurnChart"></canvas></div>
-      <div class="chart-card"><h3>Context Fill</h3><canvas id="fillPerTurnChart"></canvas></div>
+    <div class="tab-panel" id="panel-cost">
+      <div class="charts-grid">
+        <div class="chart-card"><h3>Cost Accumulation</h3><canvas id="costPerTurnChart"></canvas></div>
+        <div class="chart-card"><h3>Context Fill</h3><canvas id="fillPerTurnChart"></canvas></div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-segments">
+      <div class="section">
+        <div class="section-header"><h2>Segment Distribution Per Turn</h2></div>
+        <div class="chart-card-full" style="min-height:380px"><canvas id="segmentsPerTurnChart"></canvas></div>
+      </div>
     </div>
     <div class="section">
       <div class="section-header"><h2>Turns</h2></div>
@@ -471,19 +563,37 @@ function showOverview(){
   renderOverview();
 }
 
+let currentSessionIndex = -1;
 function showSessionDetail(id){
   destroyCharts();
+  currentSessionIndex = sessionsData.findIndex(s => s.id === id);
   document.getElementById('overview').style.display='none';
   document.getElementById('detail').style.display='block';
   renderSessionDetail(id);
+  updateSessionNav();
+}
+function updateSessionNav(){
+  const prev=document.getElementById('prevSession');
+  const next=document.getElementById('nextSession');
+  prev.disabled = currentSessionIndex <= 0;
+  next.disabled = currentSessionIndex >= sessionsData.length - 1;
+}
+function navigateSession(direction){
+  const newIndex = currentSessionIndex + direction;
+  if(newIndex < 0 || newIndex >= sessionsData.length) return;
+  destroyCharts();
+  currentSessionIndex = newIndex;
+  renderSessionDetail(sessionsData[currentSessionIndex].id);
+  updateSessionNav();
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function renderOverview(){
   const agg=queryOne(`SELECT count(DISTINCT s.id) as sessions, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, count(DISTINCT t.id) as total_turns FROM sessions s LEFT JOIN turns t ON s.id=t.session_id`);
-  const sessionCosts=query(`SELECT s.id, s.model, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cache_read),0) as total_cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id`);
+  const sessionCosts=query(`SELECT s.id, s.model, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cache_read),0) as total_cache, coalesce(sum(t.cache_write),0) as total_cache_write FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id`);
   let totalCost=0, totalCacheSavings=0;
   sessionCosts.forEach(s => {
-    totalCost += calcCost(s.model, s.total_input, s.total_output, s.total_cache, 0);
+    totalCost += calcCost(s.model, s.total_input, s.total_output, s.total_cache, s.total_cache_write || 0);
     totalCacheSavings += calcCacheSavings(s.model, s.total_input, s.total_cache);
   });
   document.getElementById('navStats').textContent=`${agg.sessions||0} sessions · ${fmtTokens(agg.total_input)} · ${fmtCost(totalCost)}`;
@@ -499,7 +609,8 @@ function renderOverview(){
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cache Savings</div><div class="value">${fmtCost(totalCacheSavings)}</div><div class="sub">${totalCacheSavings>0?fmtPct(totalCacheSavings/(totalCost+totalCacheSavings)*100)+' of gross cost':''}</div></div>
   `;
 
-  renderTopSegments(); renderCostChart(); renderCacheChart(); renderTokenCompChart(); renderSessionsTable();
+  renderNarrative(agg,totalCost,totalCacheSavings);
+  renderModelBreakdown(); renderTopSegments(); renderCostChart(); renderCostByModelChart(); renderTokenCompChart(); renderSessionsTable();
 }
 
 function renderTopSegments(){
@@ -519,7 +630,7 @@ function renderTopSegments(){
 function renderCostChart(){
   const data=query(`SELECT s.id,s.started_at,s.model,sum(t.input_tokens) as input,sum(t.output_tokens) as output,sum(t.cache_read) as cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
   if(!data.length)return;
-  const costs=data.map(r=>calcCost(r.model,r.input,r.output,r.cache,0));
+  const costs=data.map(r=>calcCost(r.model,r.input,r.output,r.cache,r.cache_write||0));
   const labels=data.map(r=>fmtDateShort(r.started_at));
   let cum=0; const cumCosts=costs.map(c=>{cum+=c;return cum;});
   charts.cost=new Chart(document.getElementById('costChart').getContext('2d'),{
@@ -538,19 +649,23 @@ function renderCostChart(){
   });
 }
 
-function renderCacheChart(){
-  const data=query(`SELECT s.id,s.started_at,sum(t.cache_read) as cache,sum(t.input_tokens) as input FROM sessions s JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
-  if(!data.length)return;
-  const cached=data.map(r=>r.cache||0);
-  const newT=data.map(r=>Math.max(0,(r.input||0)-(r.cache||0)));
-  charts.cache=new Chart(document.getElementById('cacheChart').getContext('2d'),{
-    type:'bar',data:{labels:data.map(r=>fmtDateShort(r.started_at)),datasets:[
-      {label:'Cached',data:cached,backgroundColor:'rgba(76,175,80,0.6)',borderColor:'#4caf50',borderWidth:1,borderRadius:4,stack:'stack0'},
-      {label:'New',data:newT,backgroundColor:'rgba(250,249,246,0.3)',borderColor:'#faf9f6',borderWidth:1,borderRadius:4,stack:'stack0'},
-    ]},
+function renderCostByModelChart(){
+  const data=query(`SELECT s.id,s.started_at,s.model,sum(t.input_tokens) as input,sum(t.output_tokens) as output,sum(t.cache_read) as cache,sum(t.cache_write) as cache_write FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
+  if(!data.length) return;
+  const models=[...new Set(data.map(r=>r.model||'unknown'))];
+  const labels=[...new Set(data.map(r=>fmtDateShort(r.started_at)))];
+  const palette=['rgba(250,249,246,0.4)','rgba(255,152,0,0.5)','rgba(76,175,80,0.5)','rgba(160,64,64,0.5)','rgba(90,138,90,0.5)','rgba(122,111,160,0.5)'];
+  const borderPalette=['#faf9f6','#ff9800','#4caf50','#a04040','#5a8a5a','#7a6fa0'];
+  const datasets=models.map((model,i)=>{
+    const modelData=data.filter(r=>(r.model||'unknown')===model);
+    const costs=modelData.map(r=>calcCost(r.model,r.input,r.output,r.cache,r.cache_write||0));
+    return {label:model,data:costs,backgroundColor:palette[i%palette.length],borderColor:borderPalette[i%borderPalette.length],borderWidth:1,borderRadius:4,stack:'cost'};
+  });
+  charts.costByModel=new Chart(document.getElementById('costByModelChart').getContext('2d'),{
+    type:'bar',data:{labels,datasets},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtTokens(c.raw)}`}}},
-      scales:{x:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtTokens(v)}}}
+      plugins:{legend:{labels:{color:'#868584',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},
+      scales:{x:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},y:{stacked:true,grid:CHART_GRID,ticks:{...CHART_TICK,color:'#afaeac',callback:v=>fmtCost(v)}}}
     }
   });
 }
@@ -574,17 +689,58 @@ function renderTokenCompChart(){
   });
 }
 
+function renderNarrative(agg,totalCost,totalCacheSavings){
+  const el=document.getElementById('narrativeBanner');
+  if(!el||!agg.sessions) return;
+  const parts=[];
+  parts.push(`<strong>${agg.sessions}</strong> sessions tracked`);
+  parts.push(`<strong>${fmtTokens(agg.total_input)}</strong> total tokens processed`);
+  if(totalCost>0) parts.push(`<span class="narrative-highlight">${fmtCost(totalCost)}</span> spent`);
+  if(totalCacheSavings>0){
+    const savingsPct=totalCacheSavings/(totalCost+totalCacheSavings)*100;
+    parts.push(`saved <span class="narrative-highlight">${fmtCost(totalCacheSavings)}</span> via cache (${fmtPct(savingsPct)} of gross)`);
+  }
+  const avgCostPerSession=totalCost/Math.max(agg.sessions,1);
+  if(avgCostPerSession>0) parts.push(`avg <span class="narrative-highlight">${fmtCost(avgCostPerSession)}</span>/session`);
+  el.innerHTML=parts.join(' \u00b7 ');
+}
+
+function renderModelBreakdown(){
+  const data=query(`SELECT s.model, count(DISTINCT s.id) as sessions, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cache_read),0) as total_cache, coalesce(sum(t.cache_write),0) as total_cache_write FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.model ORDER BY sessions DESC`);
+  if(!data.length) return;
+  const container=document.getElementById('modelBreakdown');
+  if(!container) return;
+  container.innerHTML=data.map(m=>{
+    const cost=calcCost(m.model,m.total_input,m.total_output,m.total_cache,m.total_cache_write||0);
+    const savings=calcCacheSavings(m.model,m.total_input,m.total_cache);
+    const cpct=m.total_input>0?(m.total_cache/m.total_input*100):0;
+    return `<div class="model-card">
+      <div class="model-name"><span class="model-badge">${escHtml(m.model||'unknown')}</span></div>
+      <div class="model-stats">
+        <div class="model-stat"><span class="ms-label">Sessions</span><span class="ms-value">${m.sessions}</span></div>
+        <div class="model-stat"><span class="ms-label">Input</span><span class="ms-value">${fmtTokens(m.total_input)}</span></div>
+        <div class="model-stat"><span class="ms-label">Output</span><span class="ms-value">${fmtTokens(m.total_output)}</span></div>
+        <div class="model-stat"><span class="ms-label">Cache Hit</span><span class="ms-value">${fmtPct(cpct)}</span></div>
+        <div class="model-stat"><span class="ms-label">Cost</span><span class="ms-value">${fmtCost(cost)}</span></div>
+        ${savings>0?`<div class="model-stat"><span class="ms-label">Saved</span><span class="ms-value" style="color:var(--success)">${fmtCost(savings)}</span></div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderSessionsTable(){
-  sessionsData=query(`SELECT s.id,s.model,s.context_window,s.cwd,s.started_at,s.ended_at,count(t.id) as turns,coalesce(sum(t.input_tokens),0) as total_input,coalesce(sum(t.output_tokens),0) as total_output,coalesce(sum(t.cache_read),0) as total_cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at DESC`);
+  sessionsData=query(`SELECT s.id,s.model,s.context_window,s.cwd,s.started_at,s.ended_at,count(t.id) as turns,coalesce(sum(t.input_tokens),0) as total_input,coalesce(sum(t.output_tokens),0) as total_output,coalesce(sum(t.cache_read),0) as total_cache,coalesce(sum(t.cache_write),0) as total_cache_write FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at DESC`);
   document.querySelector('#sessionsTable tbody').innerHTML=sessionsData.map(s=>{
     const newT=Math.max(0,s.total_input-s.total_cache);
     const cpct=s.total_input>0?(s.total_cache/s.total_input*100):0;
     const npct=s.total_input>0?(newT/s.total_input*100):0;
-    const cost=calcCost(s.model,s.total_input,s.total_output,s.total_cache,0);
+    const cost=calcCost(s.model,s.total_input,s.total_output,s.total_cache,s.total_cache_write||0);
     const savings=calcCacheSavings(s.model,s.total_input,s.total_cache);
+    const proj=cwdToProject(s.cwd);
     return `<tr onclick="showSessionDetail('${s.id}')">
       <td><span style="font-weight:500">${fmtDate(s.started_at)}</span> <span class="mono" style="color:var(--text-dim)">${fmtTime(s.started_at)}</span></td>
       <td><span class="model-badge">${s.model||'-'}</span></td>
+      <td><span class="project-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>${escHtml(proj.short)}</span></td>
       <td>${s.turns||0}</td>
       <td class="mono">${fmtTokens(s.total_input)}</td>
       <td class="mono" style="color:var(--text-secondary)">${fmtTokens(newT)}</td>
@@ -603,19 +759,30 @@ function renderSessionDetail(sessionId){
   const modelShort=(session.model||'').split('-').slice(0,2).join('-');
   document.getElementById('breadcrumb').innerHTML=`<span class="sep">/</span> <span class="current">${modelShort||sessionId.slice(0,8)}</span>`;
 
+  const proj=cwdToProject(session.cwd);
+  const dur=fmtDuration(session.started_at,session.ended_at);
   document.getElementById('detailHeader').innerHTML=`
     <div>
-      <div class="detail-title">Session Detail</div>
-      <div class="detail-meta">
-        <span><span class="model-badge">${session.model||'-'}</span></span>
-        <span style="color:var(--text-dim)">${fmtDate(session.started_at)} &middot; ${session.context_window?fmtTokens(session.context_window):'-'} ctx</span>
+      <div class="detail-header-row">
+        <div>
+          <div class="detail-title">Session Detail</div>
+          <div class="detail-meta">
+            <span><span class="model-badge">${session.model||'-'}</span></span>
+            <span style="color:var(--text-dim)">${fmtDate(session.started_at)} ${fmtTime(session.started_at)}</span>
+          </div>
+          <div class="detail-project"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> ${escHtml(proj.label)}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="detail-duration-big">${dur}</div>
+          <div class="detail-duration-label">Duration</div>
+        </div>
       </div>
     </div>`;
 
   const turns=query(`SELECT t.*, sb_data.segments_json FROM turns t LEFT JOIN (SELECT sb.turn_id, json_group_array(json_object('segment',sb.segment,'tokens',sb.tokens,'percentage',sb.percentage)) as segments_json FROM segment_breakdown sb GROUP BY sb.turn_id) sb_data ON t.id=sb_data.turn_id WHERE t.session_id=? ORDER BY t.turn_index ASC`,[sessionId]);
   const ti=turns.reduce((s,t)=>s+(t.input_tokens||0),0);
   const to=turns.reduce((s,t)=>s+(t.output_tokens||0),0);
-  const tc=turns.reduce((s,t)=>s+calcCost(session.model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,0),0);
+  const tc=turns.reduce((s,t)=>s+calcCost(session.model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,t.cache_write||0),0);
   const tca=turns.reduce((s,t)=>s+(t.cache_read||0),0);
   const cacheSavings=turns.reduce((s,t)=>s+calcCacheSavings(session.model,t.input_tokens||0,t.cache_read||0),0);
   const cp=ti>0?(tca/ti)*100:0;
@@ -631,6 +798,7 @@ function renderSessionDetail(sessionId){
     <div class="stat-card"><div class="icon-wrap"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Turns</div><div class="value">${turns.length}</div></div>
   `;
 
+  renderTurnTimeline(turns,session.model);
   renderContextBar(turns,session.context_window);
   renderSegmentsPerTurn(turns);
   renderTokensPerTurn(turns);
@@ -714,7 +882,7 @@ function renderCachePerTurn(turns){
 
 function renderCostPerTurn(turns,model,cw){
   const labels=turns.map(t=>'T'+t.turn_index);
-  const costs=turns.map(t=>calcCost(model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,0));
+  const costs=turns.map(t=>calcCost(model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,t.cache_write||0));
   let cum=0;const cumC=costs.map(c=>{cum+=c;return cum;});
   charts.costPerTurn=new Chart(document.getElementById('costPerTurnChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
@@ -730,7 +898,46 @@ function renderCostPerTurn(turns,model,cw){
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function cwdToProject(cwd) {
+  if (!cwd) return { label: 'Unknown', short: '\u2014' };
+  const parts = cwd.replace(/\/+$/, '').split('/');
+  const short = parts[parts.length - 1] || parts[parts.length - 2] || 'unknown';
+  return { label: cwd, short: short.length > 18 ? short.slice(0, 15) + '\u2026' : short };
+}
 let allTurns=[];
+function renderTurnTimeline(turns,model){
+  const container=document.getElementById('turnTimeline');
+  if(!container) return;
+  let prevNew=null;
+  container.innerHTML=turns.map(t=>{
+    const inp=t.input_tokens||0;
+    const cached=t.cache_read||0;
+    const newT=Math.max(0,inp-cached);
+    const cpct=inp>0?(cached/inp*100):0;
+    const cost=calcCost(model,inp,t.output_tokens||0,cached,t.cache_write||0);
+    let deltaHtml='';
+    if(prevNew!==null){
+      const d=newT-prevNew;
+      if(d>0) deltaHtml=`<span class="delta-up">+${fmtTokens(d)}</span>`;
+      else if(d<0) deltaHtml=`<span class="delta-down">${fmtTokens(d)}</span>`;
+    }
+    prevNew=newT;
+    return `<div class="timeline-item" data-turn="${t.turn_index}">
+      <div class="timeline-turn">T${t.turn_index}</div>
+      <div class="timeline-content">
+        <div class="timeline-metrics">
+          <span>${fmtTokens(inp)} in</span>
+          <span class="tm-highlight">${fmtPct(cpct)} cache</span>
+          <span>${fmtTokens(t.output_tokens)} out</span>
+          ${deltaHtml?'<span>'+deltaHtml+'</span>':''}
+        </div>
+        ${t.entry_id?`<div class="timeline-entry">${escHtml(t.entry_id)}</div>`:''}
+      </div>
+      <div class="timeline-side">${fmtCost(cost)}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderTurnsTable(turns,model){
   allTurns=turns;
   let prevNew=null;
@@ -748,14 +955,6 @@ function renderTurnsTable(turns,model){
       else deltaHtml='<span class="delta-zero">0</span>';
     } else { deltaHtml='<span class="delta-zero">-</span>'; }
     prevNew=newT;
-    const previewStyle='font-size:0.72rem;color:var(--text-dim);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-    let previewHtml='';
-    if(t.user_content||t.assistant_content){
-      const lines=[];
-      if(t.user_content) lines.push(`<span style="${previewStyle}">\ud83d\udc64 ${escHtml(t.user_content.substring(0,100))}</span>`);
-      if(t.assistant_content) lines.push(`<span style="${previewStyle}">\ud83e\udd16 ${escHtml(t.assistant_content.substring(0,100))}</span>`);
-      previewHtml=`<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px">${lines.join('')}</div>`;
-    }
     return `<tr class="turn-row" data-turn="${t.turn_index}" style="cursor:pointer">
       <td style="font-weight:500">T${t.turn_index}</td>
       <td class="mono">${fmtTokens(inp)}</td>
@@ -764,32 +963,27 @@ function renderTurnsTable(turns,model){
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td>${deltaHtml}</td>
       <td class="mono">${fmtTokens(t.output_tokens)}</td>
-      <td class="mono">${fmtCost(calcCost(model,inp,t.output_tokens||0,t.cache_read||0,0))}</td>
+      <td class="mono">${fmtCost(calcCost(model,inp,t.output_tokens||0,t.cache_read||0,t.cache_write||0))}</td>
       <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
-    </tr>${previewHtml?'<tr><td colspan="9" style="padding:0 0.75rem 0.5rem 0.75rem;border-top:none">'+previewHtml+'</td></tr>':''}`;
+    </tr>`;
   }).join('');
 }
 
-// Turn content modal
+// Turn content modal — chat convo
 let currentModalTurn=null;
+function renderChatBubble(role,content){
+  if(!content) return `<div class="chat-bubble ${role}"><div class="chat-role">${role}</div><span class="chat-empty">(no content recorded)</span></div>`;
+  return `<div class="chat-bubble ${role}"><div class="chat-role">${role}</div>${escHtml(content)}</div>`;
+}
 function openTurnModal(turn){
   currentModalTurn=turn;
-  document.getElementById('modalTitle').textContent='Turn '+turn.turn_index;
-  const hasUser=!!turn.user_content;
-  const hasAssistant=!!turn.assistant_content;
-  document.querySelectorAll('.modal-tab').forEach(tab=>{
-    const role=tab.dataset.role;
-    tab.classList.toggle('active',role==='user'?hasUser:!hasUser&&role==='assistant');
-  });
-  showModalContent(turn,hasUser?'user':'assistant');
+  document.getElementById('modalTitle').textContent='Turn '+turn.turn_index+' — Conversation';
+  const body=document.getElementById('modalBody');
+  body.innerHTML=renderChatBubble('user',turn.user_content)+renderChatBubble('assistant',turn.assistant_content);
+  // Scroll to top
+  body.scrollTop=0;
   document.getElementById('turnModal').classList.add('active');
   document.addEventListener('keydown',closeModalOnEsc);
-}
-function showModalContent(turn,role){
-  const body=document.getElementById('modalBody');
-  const content=role==='user'?turn.user_content:turn.assistant_content;
-  if(content) body.textContent=content;
-  else body.innerHTML='<span style="color:var(--text-dim);font-style:italic">(no content recorded — turn predates content tracking)</span>';
 }
 function closeTurnModal(){
   document.getElementById('turnModal').classList.remove('active');
@@ -797,8 +991,6 @@ function closeTurnModal(){
   currentModalTurn=null;
 }
 function closeModalOnEsc(e){if(e.key==='Escape')closeTurnModal();}
-
-// Modal listeners initialized in inline script after modal HTML
 
 document.getElementById('dropArea').addEventListener('click',()=>document.getElementById('fileInput').click());
 document.getElementById('fileInput').addEventListener('change',e=>{if(e.target.files[0])loadDb(e.target.files[0]);});
@@ -811,10 +1003,6 @@ da.addEventListener('drop',e=>{e.preventDefault();da.classList.remove('drag-over
   <div class="modal">
     <div class="modal-header">
       <h3 id="modalTitle">Turn</h3>
-      <div class="modal-tabs">
-        <button class="modal-tab active" data-role="user">User</button>
-        <button class="modal-tab" data-role="assistant">Assistant</button>
-      </div>
       <button class="modal-close" id="modalClose">&times;</button>
     </div>
     <div class="modal-body" id="modalBody"></div>
@@ -823,17 +1011,33 @@ da.addEventListener('drop',e=>{e.preventDefault();da.classList.remove('drag-over
 <script>
 document.getElementById('modalClose').addEventListener('click',closeTurnModal);
 document.getElementById('turnModal').addEventListener('click',e=>{if(e.target.id==='turnModal')closeTurnModal();});
-document.querySelectorAll('.modal-tab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    document.querySelectorAll('.modal-tab').forEach(t=>t.classList.remove('active'));
-    tab.classList.add('active');
-    if(currentModalTurn) showModalContent(currentModalTurn,tab.dataset.role);
-  });
+document.getElementById('prevSession').addEventListener('click',()=>navigateSession(-1));
+document.getElementById('nextSession').addEventListener('click',()=>navigateSession(1));
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('detail').style.display==='none') return;
+  if(document.getElementById('turnModal').classList.contains('active')) return;
+  if(e.key==='ArrowLeft') navigateSession(-1);
+  if(e.key==='ArrowRight') navigateSession(1);
+});
+document.getElementById('detailTabs').addEventListener('click',e=>{
+  const tab=e.target.closest('.detail-tab');
+  if(!tab) return;
+  document.querySelectorAll('.detail-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  tab.classList.add('active');
+  document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
 });
 document.getElementById('turnsTable').addEventListener('click',e=>{
   const row=e.target.closest('tr.turn-row');
   if(!row) return;
   const idx=parseInt(row.dataset.turn);
+  const turn=allTurns.find(t=>t.turn_index===idx);
+  if(turn) openTurnModal(turn);
+});
+document.getElementById('turnTimeline').addEventListener('click',e=>{
+  const item=e.target.closest('.timeline-item');
+  if(!item) return;
+  const idx=parseInt(item.dataset.turn);
   const turn=allTurns.find(t=>t.turn_index===idx);
   if(turn) openTurnModal(turn);
 });
