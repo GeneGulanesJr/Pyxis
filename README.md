@@ -55,6 +55,35 @@ The bar breaks your context window into 15 color-coded segments:
 | 🔵 | User Messages | Your messages |
 | 🟢 | Assistant Text | Model's text responses |
 
+---
+
+## Cache: Two Different Things
+
+Pi's footer shows a `cache` stat, but this can be confused with Pi's persistent memory layer. They are **completely separate**:
+
+### API Prompt Cache (the `cache` stat in the footer)
+- **What it is:** The LLM provider's own token cache (Anthropic/OpenAI)
+- **Purpose:** Reuse prompt tokens across requests to **reduce API cost**
+- **Scope:** Per-session, time-limited — automatically expires
+- **Default TTL:**
+  - Anthropic: 5 minutes
+  - OpenAI: In-memory only (lost between requests)
+- **Extended (`PI_CACHE_RETENTION=long`):**
+  - Anthropic: 1 hour
+  - OpenAI: 24 hours
+- **You see:** The `cache` value = tokens served from this short-lived API cache this session
+
+### Memory Layer (Pi's persistent memory)
+- **What it is:** Permanent SQLite knowledge base (`~/.pi/memory/memory.db`)
+- **Purpose:** **Remember everything forever** — decisions, code index, docs across all your projects
+- **Scope:** All sessions, all time — only cleaned if stale/supersenced (Dream Cycle every 10 sessions)
+- **Access:** `/memory-search`, auto-saved decisions, symbol links
+- **You see:** Via `memory-*` commands — does **not** appear in footer stats
+
+> **Key point:** The confusingly-named `PI_CACHE_RETENTION` environment variable controls the **API prompt cache** (a cost optimization), **not** the memory layer. The memory layer has no TTL — it's permanent by design.
+
+If you want to see memory layer stats, use `/memory-session-summary` or `/memory-stats` (if memory-layer extension is installed).
+
 ## Architecture
 
 ```
