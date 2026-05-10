@@ -715,7 +715,10 @@ function renderCostPerTurn(turns,model,cw){
   });
 }
 
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+let allTurns=[];
 function renderTurnsTable(turns,model){
+  allTurns=turns;
   let prevNew=null;
   document.querySelector('#turnsTable tbody').innerHTML=turns.map(t=>{
     const inp=t.input_tokens||0;
@@ -731,7 +734,15 @@ function renderTurnsTable(turns,model){
       else deltaHtml='<span class="delta-zero">0</span>';
     } else { deltaHtml='<span class="delta-zero">-</span>'; }
     prevNew=newT;
-    return `<tr>
+    const previewStyle='font-size:0.72rem;color:var(--text-dim);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    let previewHtml='';
+    if(t.user_content||t.assistant_content){
+      const lines=[];
+      if(t.user_content) lines.push(`<span style="${previewStyle}">\ud83d\udc64 ${escHtml(t.user_content.substring(0,100))}</span>`);
+      if(t.assistant_content) lines.push(`<span style="${previewStyle}">\ud83e\udd16 ${escHtml(t.assistant_content.substring(0,100))}</span>`);
+      previewHtml=`<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px">${lines.join('')}</div>`;
+    }
+    return `<tr class="turn-row" data-turn="${t.turn_index}" style="cursor:pointer">
       <td style="font-weight:500">T${t.turn_index}</td>
       <td class="mono">${fmtTokens(inp)}</td>
       <td class="mono" style="color:var(--text-secondary)">${fmtTokens(newT)}</td>
@@ -741,7 +752,7 @@ function renderTurnsTable(turns,model){
       <td class="mono">${fmtTokens(t.output_tokens)}</td>
       <td class="mono">${fmtCost(calcCost(model,inp,t.output_tokens||0,t.cache_read||0,0))}</td>
       <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
-    </tr>`;
+    </tr>${previewHtml?'<tr><td colspan="9" style="padding:0 0.75rem 0.5rem 0.75rem;border-top:none">'+previewHtml+'</td></tr>':''}`;
   }).join('');
 }
 
