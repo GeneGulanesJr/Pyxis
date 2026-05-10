@@ -131,14 +131,17 @@ code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: 
 .chart-card, .chart-card-full {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
   transition: border-color 0.25s;
 }
+.chart-card { height: 280px; }
+.chart-card-full { height: 320px; }
 .chart-card:hover, .chart-card-full:hover { border-color: rgba(226,226,226,0.3); }
 .chart-card h3, .chart-card-full h3 {
   font-size: 0.82rem; color: var(--text-dim); margin-bottom: 0.75rem;
   font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;
 }
-.chart-card canvas, .chart-card-full canvas { width: 100% !important; height: 100% !important; }
+.chart-card canvas, .chart-card-full canvas { width: 100% !important; height: calc(100% - 1.6rem) !important; }
 
 table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; }
 thead th {
