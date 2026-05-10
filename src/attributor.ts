@@ -178,17 +178,19 @@ export function computeAttribution(
     }
   }
 
-  // Calibrate: scale estimates proportionally to match usage.input
+  // Total input includes both non-cached and cache-read tokens.
+  // Some providers (e.g. Anthropic) report cacheRead separately from input,
+  // so usage.input alone is only the non-cached portion.
+  const totalInput = (usage.input + usage.cacheRead) || totalEstimate || 0;
+
+  // Calibrate: scale estimates proportionally to match total input (cached + non-cached)
   const totalEstimate = Array.from(segmentEstimates.values()).reduce((a, b) => a + b, 0);
-  if (usage.input > 0 && totalEstimate > 0) {
-    const scale = usage.input / totalEstimate;
+  if (totalInput > 0 && totalEstimate > 0) {
+    const scale = totalInput / totalEstimate;
     for (const [id, est] of segmentEstimates) {
       segmentEstimates.set(id, Math.round(est * scale));
     }
   }
-
-  // Build result
-  const totalInput = usage.input || totalEstimate || 0;
   const segmentResult: SegmentTokens[] = [];
   const segmentMap = new Map<string, SegmentTokens>();
 
@@ -207,7 +209,7 @@ export function computeAttribution(
   }
 
   const freeTokens = Math.max(0, contextWindow - totalInput);
-  const cacheReadPct = usage.input > 0 ? (usage.cacheRead / usage.input) * 100 : 0;
+  const cacheReadPct = totalInput > 0 ? (usage.cacheRead / totalInput) * 100 : 0;
 
   return {
     segments: segmentResult,

@@ -136,6 +136,8 @@ export async function insertTurn(
   try {
     const database = await getDb();
     const timestamp = new Date().toISOString();
+    // cacheReadPct is already relative to totalInput (which includes cacheRead),
+    // so this recovers the raw cacheRead token count accurately.
     const cacheRead = attribution.cacheReadPct > 0
       ? Math.round(attribution.totalInput * attribution.cacheReadPct / 100)
       : 0;
