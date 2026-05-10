@@ -51,6 +51,8 @@ async function getDb(): Promise<Database> {
       cache_write INTEGER NOT NULL DEFAULT 0,
       cost_total REAL NOT NULL DEFAULT 0,
       timestamp TEXT NOT NULL,
+      user_content TEXT,
+      assistant_content TEXT,
       UNIQUE(session_id, turn_index)
     );
   `);
@@ -69,6 +71,20 @@ async function getDb(): Promise<Database> {
   db.run(`CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_segments_turn ON segment_breakdown(turn_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(started_at)`);
+
+  // Migrate: add content columns if they don't exist (existing DBs)
+  try {
+    const cols = db.exec("PRAGMA table_info(turns)");
+    const colNames = cols[0]?.values?.map((r: any) => r[1]) || [];
+    if (!colNames.includes('user_content')) {
+      db.run('ALTER TABLE turns ADD COLUMN user_content TEXT');
+    }
+    if (!colNames.includes('assistant_content')) {
+      db.run('ALTER TABLE turns ADD COLUMN assistant_content TEXT');
+    }
+  } catch {
+    // Table doesn't exist yet — CREATE TABLE handles it
+  }
 
   saveDb();
   dbReady = true;
