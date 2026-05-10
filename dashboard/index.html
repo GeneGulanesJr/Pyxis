@@ -394,6 +394,105 @@ const SEGMENT_NAMES = {
 };
 
 let db = null, charts = {}, sessionsData = [];
+let pricingMap = {};  // modelId -> {prompt, completion, cache_read, cache_write}
+let pricingLoaded = false;
+
+// --- OpenRouter Pricing Engine ---
+// Fetches live pricing from OpenRouter API (no auth needed)
+// Fuzzy-matches Pi model names to OpenRouter model IDs
+
+async function loadPricing() {
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/models');
+    const json = await resp.json();
+    if (!json.data) return;
+    for (const m of json.data) {
+      const p = m.pricing || {};
+      if (p.prompt || p.completion) {
+        pricingMap[m.id] = {
+          prompt: parseFloat(p.prompt) || 0,
+          completion: parseFloat(p.completion) || 0,
+          cache_read: parseFloat(p.input_cache_read) || 0,
+          cache_write: parseFloat(p.input_cache_write) || 0,
+          ctx: m.context_length || 0,
+        };
+      }
+    }
+    pricingLoaded = true;
+    console.log('[PiStats] Pricing loaded:', Object.keys(pricingMap).length, 'models');
+  } catch (e) {
+    console.warn('[PiStats] Pricing fetch failed:', e);
+  }
+}
+
+// Fuzzy match a Pi model name to an OpenRouter model ID
+// e.g. "glm-5.1:cloud" -> "z-ai/glm-5.1"
+//      "glm-5-turbo" -> "z-ai/glm-5-turbo"
+//      "claude-sonnet-4-20250514" -> "anthropic/claude-sonnet-4-20250514"
+function findPricing(modelName) {
+  if (!modelName || !pricingLoaded) return null;
+  const normalized = modelName.toLowerCase().replace(/:cloud$/, '').replace(/:local$/, '');
+
+  // 1. Exact match
+  if (pricingMap[normalized]) return pricingMap[normalized];
+
+  // 2. Try common provider prefixes
+  const providers = ['openai/', 'anthropic/', 'google/', 'meta-llama/', 'z-ai/', 'mistralai/', 'deepseek/', 'cohere/', 'perplexity/', 'x-ai/'];
+  for (const prefix of providers) {
+    const candidate = prefix + normalized;
+    if (pricingMap[candidate]) return pricingMap[candidate];
+  }
+
+  // 3. Fuzzy: strip date suffixes, variant markers
+  // e.g. "claude-3-5-sonnet-20241022" matches "anthropic/claude-3-5-sonnet-20241022"
+  const ids = Object.keys(pricingMap);
+  for (const id of ids) {
+    const bare = id.split('/').pop();
+    if (bare === normalized || bare === normalized.replace(/-[0-9]{8}$/, '')) {
+      return pricingMap[id];
+    }
+  }
+
+  // 4. Substring match (model name contained in OpenRouter ID)
+  for (const id of ids) {
+    const bare = id.split('/').pop();
+    if (bare.includes(normalized) || normalized.includes(bare)) {
+      return pricingMap[id];
+    }
+  }
+
+  return null;
+}
+
+// Calculate cost for a turn or session
+function calcCost(model, inputTokens, outputTokens, cacheRead, cacheWrite) {
+  const p = findPricing(model);
+  if (!p) return 0;
+  const newTokens = Math.max(0, (inputTokens || 0) - (cacheRead || 0));
+  const promptCost = newTokens * p.prompt;
+  const cacheCost = (cacheRead || 0) * p.cache_read;
+  const cacheWriteCost = (cacheWrite || 0) * p.cache_write;
+  const outputCost = (outputTokens || 0) * p.completion;
+  return promptCost + cacheCost + cacheWriteCost + outputCost;
+}
+
+// Calculate cache savings (what it would have cost without cache vs with cache)
+function calcCacheSavings(model, inputTokens, cacheRead) {
+  const p = findPricing(model);
+  if (!p || !cacheRead || cacheRead <= 0) return 0;
+  const fullPrice = cacheRead * p.prompt;
+  const cachePrice = cacheRead * p.cache_read;
+  return fullPrice - cachePrice;
+}
+
+// Get model display name with pricing indicator
+function modelPriceLabel(model) {
+  const p = findPricing(model);
+  if (!p) return model || '-';
+  const inpPerM = (p.prompt * 1e6).toFixed(2);
+  const outPerM = (p.completion * 1e6).toFixed(2);
+  return model + ' · $' + inpPerM + '/$' + outPerM + ' per M';
+}
 
 const CHART_GRID = { color: 'rgba(255,255,255,0.04)' };
 const CHART_TICK = { color: '#64748b', font: { family: "'JetBrains Mono', monospace", size: 10 } };
@@ -432,7 +531,8 @@ async function loadDb(file){
     if(!t[0]||t[0].cnt<3){toast('Invalid pistats.db',true);return;}
     document.getElementById('dropzone').style.display='none';
     document.getElementById('dashboard').style.display='block';
-    showOverview();
+    // Load pricing in parallel, then render
+    loadPricing().then(() => showOverview());
   }catch(e){toast('Failed: '+e.message,true);console.error(e);}
 }
 
@@ -452,17 +552,25 @@ function showSessionDetail(id){
 }
 
 function renderOverview(){
-  const agg=queryOne(`SELECT count(DISTINCT s.id) as sessions, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cost_total),0) as total_cost, count(DISTINCT t.id) as total_turns FROM sessions s LEFT JOIN turns t ON s.id=t.session_id`);
-  document.getElementById('navStats').textContent=`${agg.sessions||0} sessions · ${fmtTokens(agg.total_input)} · ${fmtCost(agg.total_cost)}`;
+  const agg=queryOne(`SELECT count(DISTINCT s.id) as sessions, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, count(DISTINCT t.id) as total_turns FROM sessions s LEFT JOIN turns t ON s.id=t.session_id`);
+  // Calculate real costs from pricing
+  const sessionCosts=query(`SELECT s.id, s.model, coalesce(sum(t.input_tokens),0) as total_input, coalesce(sum(t.output_tokens),0) as total_output, coalesce(sum(t.cache_read),0) as total_cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id`);
+  let totalCost=0, totalCacheSavings=0;
+  sessionCosts.forEach(s => {
+    totalCost += calcCost(s.model, s.total_input, s.total_output, s.total_cache, 0);
+    totalCacheSavings += calcCacheSavings(s.model, s.total_input, s.total_cache);
+  });
+  document.getElementById('navStats').textContent=`${agg.sessions||0} sessions · ${fmtTokens(agg.total_input)} · ${fmtCost(totalCost)}`;
   document.getElementById('sessionCount').textContent=`${agg.sessions||0}`;
 
   document.getElementById('summaryCards').innerHTML=`
     <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Sessions</div><div class="value">${agg.sessions||0}</div></div>
     <div class="stat-card"><div class="icon-wrap cyan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="label">Total Input</div><div class="value">${fmtTokens(agg.total_input)}</div></div>
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Total Output</div><div class="value">${fmtTokens(agg.total_output)}</div></div>
-    <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Total Cost</div><div class="value">${fmtCost(agg.total_cost)}</div></div>
+    <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Total Cost</div><div class="value">${fmtCost(totalCost)}</div><div class="sub">${totalCacheSavings>0?'Saved '+fmtCost(totalCacheSavings)+' via cache':''}</div></div>
     <div class="stat-card"><div class="icon-wrap pink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6"/><path d="M18 11a2 2 0 0 1 2 2v2"/><path d="M22 13a2 2 0 0 1-2 2"/></svg></div><div class="label">Turns</div><div class="value">${agg.total_turns||0}</div></div>
-    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="label">Avg Cost/Session</div><div class="value">${fmtCost((agg.total_cost||0)/Math.max(agg.sessions||1,1))}</div></div>
+    <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div><div class="label">Avg Cost/Session</div><div class="value">${fmtCost(totalCost/Math.max(agg.sessions||1,1))}</div></div>
+    <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cache Savings</div><div class="value">${fmtCost(totalCacheSavings)}</div><div class="sub">${totalCacheSavings>0?fmtPct(totalCacheSavings/(totalCost+totalCacheSavings)*100)+' of gross cost':''}</div></div>
   `;
 
   renderTopSegments(); renderCostChart(); renderCacheChart(); renderTokenCompChart(); renderSessionsTable();
@@ -483,21 +591,22 @@ function renderTopSegments(){
 }
 
 function renderCostChart(){
-  const data=query(`SELECT s.id,s.started_at,s.model,sum(t.cost_total) as cost FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
+  const data=query(`SELECT s.id,s.started_at,s.model,sum(t.input_tokens) as input,sum(t.output_tokens) as output,sum(t.cache_read) as cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at ASC`);
   if(!data.length)return;
+  const costs=data.map(r=>calcCost(r.model,r.input,r.output,r.cache,0));
   const labels=data.map(r=>fmtDateShort(r.started_at));
-  const costs=data.map(r=>r.cost||0); let cum=0; const cumCosts=costs.map(c=>{cum+=c;return cum;});
+  let cum=0; const cumCosts=costs.map(c=>{cum+=c;return cum;});
   charts.cost=new Chart(document.getElementById('costChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
       {label:'Per Session',data:costs,backgroundColor:'rgba(99,102,241,0.5)',borderColor:'#6366f1',borderWidth:1,borderRadius:5,yAxisID:'y'},
       {label:'Cumulative',data:cumCosts,type:'line',borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.05)',fill:true,pointRadius:2.5,pointBackgroundColor:'#f59e0b',tension:0.4,borderWidth:2,yAxisID:'y1'},
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},
+      plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},
       scales:{
         x:{grid:CHART_GRID,ticks:{...CHART_TICK,maxRotation:45}},
-        y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>'$'+v.toFixed(2)}},
-        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>'$'+v.toFixed(2)}}
+        y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtCost(v)}},
+        y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>fmtCost(v)}}
       }
     }
   });
@@ -540,11 +649,13 @@ function renderTokenCompChart(){
 }
 
 function renderSessionsTable(){
-  sessionsData=query(`SELECT s.id,s.model,s.context_window,s.cwd,s.started_at,s.ended_at,count(t.id) as turns,coalesce(sum(t.input_tokens),0) as total_input,coalesce(sum(t.output_tokens),0) as total_output,coalesce(sum(t.cache_read),0) as total_cache,coalesce(sum(t.cost_total),0) as total_cost FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at DESC`);
+  sessionsData=query(`SELECT s.id,s.model,s.context_window,s.cwd,s.started_at,s.ended_at,count(t.id) as turns,coalesce(sum(t.input_tokens),0) as total_input,coalesce(sum(t.output_tokens),0) as total_output,coalesce(sum(t.cache_read),0) as total_cache FROM sessions s LEFT JOIN turns t ON s.id=t.session_id GROUP BY s.id ORDER BY s.started_at DESC`);
   document.querySelector('#sessionsTable tbody').innerHTML=sessionsData.map(s=>{
     const newT=Math.max(0,s.total_input-s.total_cache);
     const cpct=s.total_input>0?(s.total_cache/s.total_input*100):0;
     const npct=s.total_input>0?(newT/s.total_input*100):0;
+    const cost=calcCost(s.model,s.total_input,s.total_output,s.total_cache,0);
+    const savings=calcCacheSavings(s.model,s.total_input,s.total_cache);
     return `<tr onclick="showSessionDetail('${s.id}')">
       <td><span style="font-weight:500">${fmtDate(s.started_at)}</span> <span class="mono" style="color:var(--text-dim)">${fmtTime(s.started_at)}</span></td>
       <td><span class="model-badge">${s.model||'-'}</span></td>
@@ -554,7 +665,7 @@ function renderSessionsTable(){
       <td class="mono" style="color:#10b981">${fmtTokens(s.total_cache)}</td>
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td class="mono">${fmtTokens(s.total_output)}</td>
-      <td class="mono">${fmtCost(s.total_cost)}</td>
+      <td class="mono">${fmtCost(cost)}${savings>0?'<div style="font-size:0.65rem;color:#10b981">save '+fmtCost(savings)+'</div>':''}</td>
       <td>${fmtDuration(s.started_at,s.ended_at)}</td>
     </tr>`;
   }).join('');
@@ -578,8 +689,9 @@ function renderSessionDetail(sessionId){
   const turns=query(`SELECT t.*, sb_data.segments_json FROM turns t LEFT JOIN (SELECT sb.turn_id, json_group_array(json_object('segment',sb.segment,'tokens',sb.tokens,'percentage',sb.percentage)) as segments_json FROM segment_breakdown sb GROUP BY sb.turn_id) sb_data ON t.id=sb_data.turn_id WHERE t.session_id=? ORDER BY t.turn_index ASC`,[sessionId]);
   const ti=turns.reduce((s,t)=>s+(t.input_tokens||0),0);
   const to=turns.reduce((s,t)=>s+(t.output_tokens||0),0);
-  const tc=turns.reduce((s,t)=>s+(t.cost_total||0),0);
+  const tc=turns.reduce((s,t)=>s+calcCost(session.model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,0),0);
   const tca=turns.reduce((s,t)=>s+(t.cache_read||0),0);
+  const cacheSavings=turns.reduce((s,t)=>s+calcCacheSavings(session.model,t.input_tokens||0,t.cache_read||0),0);
   const cp=ti>0?(tca/ti)*100:0;
 
   const tn=ti-tca;
@@ -588,7 +700,7 @@ function renderSessionDetail(sessionId){
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg></div><div class="label">New Tokens</div><div class="value">${fmtTokens(tn)}</div><div class="sub">${ti>0?fmtPct(tn/ti*100):'-'}</div></div>
     <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg></div><div class="label">Cached Tokens</div><div class="value">${fmtTokens(tca)}</div><div class="sub">${fmtPct(cp)}</div></div>
     <div class="stat-card"><div class="icon-wrap green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4"/><path d="m5 11 7-7 7 7"/></svg></div><div class="label">Output</div><div class="value">${fmtTokens(to)}</div></div>
-    <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Cost</div><div class="value">${fmtCost(tc)}</div></div>
+    <div class="stat-card"><div class="icon-wrap amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="label">Cost</div><div class="value">${fmtCost(tc)}</div><div class="sub">${cacheSavings>0?'Saved '+fmtCost(cacheSavings)+' via cache':''}</div></div>
     <div class="stat-card"><div class="icon-wrap pink"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="label">Duration</div><div class="value">${fmtDuration(session.started_at,session.ended_at)}</div></div>
     <div class="stat-card"><div class="icon-wrap blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></div><div class="label">Turns</div><div class="value">${turns.length}</div></div>
   `;
@@ -597,8 +709,8 @@ function renderSessionDetail(sessionId){
   renderSegmentsPerTurn(turns);
   renderTokensPerTurn(turns);
   renderCachePerTurn(turns);
-  renderCostPerTurn(turns,session.context_window);
-  renderTurnsTable(turns);
+  renderCostPerTurn(turns,session.model,session.context_window);
+  renderTurnsTable(turns,session.model);
 }
 
 function renderContextBar(turns,cw){
@@ -674,14 +786,15 @@ function renderCachePerTurn(turns){
   });
 }
 
-function renderCostPerTurn(turns,cw){
+function renderCostPerTurn(turns,model,cw){
   const labels=turns.map(t=>'T'+t.turn_index);
-  let cum=0;const cumC=turns.map(t=>{cum+=(t.cost_total||0);return cum;});
+  const costs=turns.map(t=>calcCost(model,t.input_tokens||0,t.output_tokens||0,t.cache_read||0,0));
+  let cum=0;const cumC=costs.map(c=>{cum+=c;return cum;});
   charts.costPerTurn=new Chart(document.getElementById('costPerTurnChart').getContext('2d'),{
     type:'bar',data:{labels,datasets:[
-      {label:'Turn',data:turns.map(t=>t.cost_total||0),backgroundColor:'rgba(99,102,241,0.45)',borderColor:'#6366f1',borderWidth:1,borderRadius:4,yAxisID:'y'},
+      {label:'Turn',data:costs,backgroundColor:'rgba(99,102,241,0.45)',borderColor:'#6366f1',borderWidth:1,borderRadius:4,yAxisID:'y'},
       {label:'Cumulative',data:cumC,type:'line',borderColor:'#f59e0b',pointRadius:2,tension:0.4,borderWidth:2,yAxisID:'y1'},
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:CHART_TOOLTIP},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>'$'+v.toFixed(3)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>'$'+v.toFixed(2)}}}}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#64748b',boxWidth:10,font:{size:10}}},tooltip:{...CHART_TOOLTIP,callbacks:{label:c=>`${c.dataset.label}: ${fmtCost(c.raw)}`}}},scales:{x:{grid:CHART_GRID,ticks:CHART_TICK},y:{position:'left',grid:CHART_GRID,ticks:{...CHART_TICK,callback:v=>fmtCost(v)}},y1:{position:'right',grid:{drawOnChartArea:false},ticks:{...CHART_TICK,color:'#f59e0b',callback:v=>fmtCost(v)}}}}
   });
   const fillPcts=turns.map(t=>cw>0?((t.input_tokens||0)/cw)*100:0);
   charts.fillPerTurn=new Chart(document.getElementById('fillPerTurnChart').getContext('2d'),{
@@ -690,7 +803,7 @@ function renderCostPerTurn(turns,cw){
   });
 }
 
-function renderTurnsTable(turns){
+function renderTurnsTable(turns,model){
   let prevNew=null;
   document.querySelector('#turnsTable tbody').innerHTML=turns.map(t=>{
     const inp=t.input_tokens||0;
@@ -714,7 +827,7 @@ function renderTurnsTable(turns){
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td>${deltaHtml}</td>
       <td class="mono">${fmtTokens(t.output_tokens)}</td>
-      <td class="mono">${fmtCost(t.cost_total)}</td>
+      <td class="mono">${fmtCost(calcCost(session.model,inp,t.output_tokens||0,t.cache_read||0,0))}</td>
       <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
     </tr>`;
   }).join('');

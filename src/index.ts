@@ -240,7 +240,7 @@ window.addEventListener('DOMContentLoaded', function() {
       db = new SQL.Database(buf);
       document.getElementById('dropzone').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
-      showOverview();
+      loadPricing().then(function() { showSessionDetail('${currentSessionId}'); });
     } catch(e) { console.error('PiStats auto-load failed:', e); }
   });
 });
@@ -273,27 +273,29 @@ window.addEventListener('DOMContentLoaded', function() {
         const url = `http://localhost:${dashboardPort}`;
         ctx.ui.notify(`PiStats dashboard: ${url}`, "info");
 
-        // Open in browser
+        // Open in default browser
         try {
           if (process.platform === "darwin") {
             execSync(`open "${url}"`, { stdio: "ignore" });
           } else if (process.platform === "win32") {
             execSync(`start "" "${url}"`, { stdio: "ignore" });
           } else {
-            execSync(`xdg-open "${url}"`, { stdio: "ignore" });
+            execSync(`xdg-open "${url}" 2>/dev/null`, { stdio: "ignore" });
           }
-        } catch {
-          // Browser open failed — URL already shown above
+        } catch (e) {
+          // Fallback: show URL for manual open
+          ctx.ui.notify(`Open in browser: ${url}`, "info");
         }
       });
 
-      // Auto-close after 10 minutes
+      // Auto-close after 5 seconds — DB is embedded in HTML, pricing fetched by browser from OpenRouter
+      // Server only needed for the initial page load
       setTimeout(() => {
         if (dashboardServer) {
           try { dashboardServer.close(); } catch {}
           dashboardServer = null;
         }
-      }, 10 * 60 * 1000);
+      }, 5000);
 
     } catch (e) {
       ctx.ui.notify("Failed to open dashboard: " + (e as Error).message, "info");
