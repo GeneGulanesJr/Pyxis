@@ -78,7 +78,7 @@ Modal uses existing design tokens:
 
 | File | Change |
 |------|--------|
-| `src/db.ts` | Schema migration (add role + content columns, change unique constraint) |
+| `src/db.ts` | Schema migration (add `user_content` + `assistant_content` columns) |
 | `src/db.ts` | `insertTurn` now takes `userContent` + `assistantContent` params |
 | `src/db.ts` | New `purgeOldContent()` function for 30-day cleanup |
 | `src/index.ts` | `turn_end` hook: extract user + assistant content, pass to insertTurn |
