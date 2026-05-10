@@ -739,7 +739,7 @@ function renderTurnsTable(turns,model){
       <td><div class="cache-bar"><div class="cb-cached" style="width:${cpct}%"></div><div class="cb-new" style="width:${npct}%"></div></div> <span style="font-size:0.75rem;color:var(--text-dim)">${fmtPct(cpct)}</span></td>
       <td>${deltaHtml}</td>
       <td class="mono">${fmtTokens(t.output_tokens)}</td>
-      <td class="mono">${fmtCost(calcCost(session.model,inp,t.output_tokens||0,t.cache_read||0,0))}</td>
+      <td class="mono">${fmtCost(calcCost(model,inp,t.output_tokens||0,t.cache_read||0,0))}</td>
       <td class="mono" style="color:var(--text-dim)">${fmtTime(t.timestamp)}</td>
     </tr>`;
   }).join('');
