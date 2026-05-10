@@ -788,7 +788,8 @@ function openTurnModal(turn){
 function showModalContent(turn,role){
   const body=document.getElementById('modalBody');
   const content=role==='user'?turn.user_content:turn.assistant_content;
-  body.textContent=content||'(empty)';
+  if(content) body.textContent=content;
+  else body.innerHTML='<span style="color:var(--text-dim);font-style:italic">(no content recorded — turn predates content tracking)</span>';
 }
 function closeTurnModal(){
   document.getElementById('turnModal').classList.remove('active');
@@ -811,7 +812,7 @@ document.getElementById('turnsTable').addEventListener('click',e=>{
   if(!row) return;
   const idx=parseInt(row.dataset.turn);
   const turn=allTurns.find(t=>t.turn_index===idx);
-  if(turn&&(turn.user_content||turn.assistant_content)) openTurnModal(turn);
+  if(turn) openTurnModal(turn);
 });
 
 document.getElementById('dropArea').addEventListener('click',()=>document.getElementById('fileInput').click());
