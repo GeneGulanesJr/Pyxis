@@ -129,6 +129,13 @@ export default function (pi: ExtensionAPI) {
       console.error("[PiStats] Failed to record session start:", e);
     }
 
+    // Purge old content (30-day retention)
+    try {
+      await db.purgeOldContent();
+    } catch (e) {
+      console.error("[PiStats] Failed to purge old content:", e);
+    }
+
     updateFooter(ctx);
   });
 
@@ -143,16 +150,39 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
+  function extractContent(message: any): string | null {
+    if (!message?.content) return null;
+    if (typeof message.content === 'string') return message.content;
+    if (Array.isArray(message.content)) {
+      return message.content.map((block: any) => {
+        if (block.type === 'text') return block.text;
+        if (block.type === 'tool_use') return '[tool call]';
+        if (block.type === 'tool_result') return '[tool result]';
+        return '';
+      }).filter(Boolean).join('\n');
+    }
+    return null;
+  }
+
   pi.on("turn_end", async (_event, ctx) => {
     computeFromContext(ctx);
     updateFooter(ctx);
 
-    // Persist turn data to DB
     if (currentAttribution) {
       try {
         const branch = ctx.sessionManager.getBranch();
-        const latestEntry = branch.findLast((e: any) => e.type === "message" && e.message?.role === "assistant");
-        await db.insertTurn(currentSessionId, currentAttribution.turnCount, latestEntry?.id || null, currentAttribution);
+        const latestAssistant = branch.findLast((e: any) => e.type === "message" && e.message?.role === "assistant");
+        const latestUser = branch.findLast((e: any) => e.type === "message" && e.message?.role === "user");
+        const userContent = latestUser ? extractContent(latestUser.message) : null;
+        const assistantContent = latestAssistant ? extractContent(latestAssistant.message) : null;
+        await db.insertTurn(
+          currentSessionId,
+          currentAttribution.turnCount,
+          latestAssistant?.id || null,
+          currentAttribution,
+          userContent,
+          assistantContent,
+        );
       } catch (e) {
         console.error("[PiStats] Failed to record turn:", e);
       }
