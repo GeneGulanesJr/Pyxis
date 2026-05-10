@@ -109,6 +109,23 @@ export function getDbPath(): string {
   return DB_PATH;
 }
 
+/** Purge full content from turns older than 30 days, keeping 100-char preview */
+export async function purgeOldContent(): Promise<void> {
+  try {
+    const database = await getDb();
+    database.run(`
+      UPDATE turns SET
+        user_content = CASE WHEN length(user_content) > 100 THEN SUBSTR(user_content, 1, 100) || '...' ELSE user_content END,
+        assistant_content = CASE WHEN length(assistant_content) > 100 THEN SUBSTR(assistant_content, 1, 100) || '...' ELSE assistant_content END
+      WHERE timestamp < datetime('now', '-30 days')
+        AND (length(user_content) > 100 OR length(assistant_content) > 100)
+    `);
+    saveDb();
+  } catch (e) {
+    console.error("[PiStats] Failed to purge old content:", e);
+  }
+}
+
 /** Flush the database to disk */
 export function flushDb(): void {
   saveDb();
