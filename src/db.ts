@@ -175,6 +175,20 @@ export async function updateSessionEnd(sessionId: string): Promise<void> {
   }
 }
 
+/** Update session model when model changes mid-session */
+export async function updateSessionModel(sessionId: string, model: string): Promise<void> {
+  try {
+    const database = await getDb();
+    database.run(
+      `UPDATE sessions SET model = ? WHERE id = ?`,
+      [model, sessionId]
+    );
+    saveDb();
+  } catch (e) {
+    console.error("[PiStats] Failed to update session model:", e);
+  }
+}
+
 /** Insert a turn with its segment breakdown */
 export async function insertTurn(
   sessionId: string,

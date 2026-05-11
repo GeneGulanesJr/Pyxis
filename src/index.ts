@@ -24,6 +24,7 @@ export default function (pi: ExtensionAPI) {
   let enabled = false;
   let lastRenderTime = 0;
   let currentSessionId = "ephemeral";
+  let currentModelId: string = "unknown";
   let thinkingLevel: string = "off";
 
   // Capture initial thinking level
@@ -98,7 +99,7 @@ export default function (pi: ExtensionAPI) {
               currentAttribution.turnCount,
               w,
               currentAttribution.contextWindow,
-              ctx.model?.id,
+              currentModelId,
               thinkingLevel,
             );
             return [...bar, info];
@@ -116,12 +117,13 @@ export default function (pi: ExtensionAPI) {
       enabled = true;
     }
     currentSessionId = getSessionId(ctx);
+    currentModelId = ctx.model?.id || "unknown";
 
     // Record session start in DB
     try {
       await db.insertSession(
         currentSessionId,
-        ctx.model?.id || "unknown",
+        currentModelId,
         ctx.model?.contextWindow || 200000,
         ctx.cwd || process.cwd(),
       );
@@ -203,6 +205,16 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (_event, ctx) => {
+    // Update the current model ID
+    const newModelId = ctx.model?.id || currentModelId;
+    if (newModelId !== currentModelId) {
+      currentModelId = newModelId;
+      try {
+        await db.updateSessionModel(currentSessionId, currentModelId);
+      } catch (e) {
+        console.error("[PiStats] Failed to update session model:", e);
+      }
+    }
     // Re-capture thinking level in case model change clamped it
     try {
       thinkingLevel = pi.getThinkingLevel?.() || thinkingLevel;
