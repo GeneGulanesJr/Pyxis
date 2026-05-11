@@ -267,7 +267,7 @@ window.addEventListener('DOMContentLoaded', function() {
       db = new SQL.Database(buf);
       document.getElementById('dropzone').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
-      loadPricing().then(function() { showSessionDetail('${currentSessionId}'); });
+      loadPricing().then(function() { showSessionDetail(${JSON.stringify(currentSessionId)}); });
     } catch(e) { console.error('PiStats auto-load failed:', e); }
   });
 });
