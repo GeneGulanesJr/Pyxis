@@ -18,7 +18,11 @@ async function getDb(): Promise<Database> {
   if (db && dbReady) return db;
 
   const SQL = await initSqlJs({
-    locateFile: (f: string) => `https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/${f}`,
+    locateFile: (f: string) => {
+      const localPath = join(import.meta.dirname, '..', 'node_modules', 'sql.js', 'dist', f);
+      if (existsSync(localPath)) return localPath;
+      return `https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/${f}`;
+    },
   });
   const dbDir = join(homedir(), ".pi", "agent");
 
