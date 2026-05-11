@@ -184,6 +184,7 @@ export default function (pi: ExtensionAPI) {
           currentAttribution,
           userContent,
           assistantContent,
+          currentModelId,
         );
       } catch (e) {
         console.error("[PiStats] Failed to record turn:", e);
@@ -416,7 +417,7 @@ window.addEventListener('DOMContentLoaded', function() {
             return;
           }
           const lines = turns.map((t: any) =>
-            `Turn ${t.turnIndex}: ↑${formatTokens(t.inputTokens)} ↓${formatTokens(t.outputTokens)} cache:${Math.round((t.cacheRead / Math.max(t.inputTokens, 1)) * 100)}% ${formatCost(t.costTotal)}`
+            `Turn ${t.turnIndex} (${t.model}): ↑${formatTokens(t.inputTokens)} ↓${formatTokens(t.outputTokens)} cache:${Math.round((t.cacheRead / Math.max(t.inputTokens, 1)) * 100)}% ${formatCost(t.costTotal)}`
           );
           ctx.ui.notify(lines.join("\n"), "info");
         } catch (e) {

@@ -56,6 +56,7 @@ async function getDb(): Promise<Database> {
       cache_read INTEGER NOT NULL DEFAULT 0,
       cache_write INTEGER NOT NULL DEFAULT 0,
       cost_total REAL NOT NULL DEFAULT 0,
+      model TEXT NOT NULL DEFAULT 'unknown',
       timestamp TEXT NOT NULL,
       user_content TEXT,
       assistant_content TEXT,
@@ -87,6 +88,9 @@ async function getDb(): Promise<Database> {
     }
     if (!colNames.includes('assistant_content')) {
       db.run('ALTER TABLE turns ADD COLUMN assistant_content TEXT');
+    }
+    if (!colNames.includes('model')) {
+      db.run("ALTER TABLE turns ADD COLUMN model TEXT NOT NULL DEFAULT 'unknown'");
     }
   } catch {
     // Table doesn't exist yet — CREATE TABLE handles it
@@ -197,6 +201,7 @@ export async function insertTurn(
   attribution: AttributionResult,
   userContent: string | null = null,
   assistantContent: string | null = null,
+  model: string = "unknown",
 ): Promise<void> {
   try {
     const database = await getDb();
@@ -206,10 +211,10 @@ export async function insertTurn(
       : 0;
 
     database.run(
-      `INSERT OR REPLACE INTO turns (session_id, turn_index, entry_id, input_tokens, output_tokens, cache_read, cache_write, cost_total, timestamp, user_content, assistant_content)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO turns (session_id, turn_index, entry_id, input_tokens, output_tokens, cache_read, cache_write, cost_total, model, timestamp, user_content, assistant_content)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [sessionId, turnIndex, entryId, attribution.totalInput, attribution.totalOutput,
-       cacheRead, 0, attribution.totalCost, timestamp, userContent, assistantContent]
+       cacheRead, 0, attribution.totalCost, model, timestamp, userContent, assistantContent]
     );
 
     // Get the turn ID
@@ -255,11 +260,11 @@ export async function getSessionTurns(sessionId: string): Promise<any[]> {
   try {
     const database = await getDb();
     const result = database.exec(
-      `SELECT t.turn_index, t.input_tokens, t.output_tokens, t.cache_read, t.cost_total, t.timestamp
+      `SELECT t.turn_index, t.input_tokens, t.output_tokens, t.cache_read, t.cost_total, t.model, t.timestamp
        FROM turns t WHERE t.session_id = ? ORDER BY t.turn_index ASC`, [sessionId]);
     return result[0]?.values?.map(row => ({
       turnIndex: row[0], inputTokens: row[1], outputTokens: row[2],
-      cacheRead: row[3], costTotal: row[4], timestamp: row[5],
+      cacheRead: row[3], costTotal: row[4], model: row[5], timestamp: row[6],
     })) || [];
   } catch {
     return [];
