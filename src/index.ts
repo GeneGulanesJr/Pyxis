@@ -227,22 +227,25 @@ export default function (pi: ExtensionAPI) {
       db.flushDb();
 
       const dbPath = db.getDbPath();
-      const homeDir = process.env.HOME || require("node:os").homedir();
-      const htmlPath = join(homeDir, "Documents", "GulanesKorp", "PiStats", "dashboard", "index.html");
 
-      // Try to find the dashboard HTML
-      let html: string;
-      try {
-        html = readFileSync(htmlPath, "utf-8");
-      } catch {
-        // Fallback: look relative to the extension
-        const fallbackPath = join(import.meta.dirname || __dirname, "dashboard.html");
+      const extDir = import.meta.dirname || __dirname;
+      const searchPaths = [
+        join(extDir, "..", "dashboard", "index.html"),
+        join(extDir, "dashboard", "index.html"),
+        join(extDir, "dashboard.html"),
+      ];
+
+      let html: string | undefined;
+      for (const p of searchPaths) {
         try {
-          html = readFileSync(fallbackPath, "utf-8");
-        } catch {
-          ctx.ui.notify("Could not find dashboard HTML. Checked: " + htmlPath, "info");
-          return;
-        }
+          html = readFileSync(p, "utf-8");
+          break;
+        } catch { /* try next */ }
+      }
+
+      if (!html) {
+        ctx.ui.notify("Could not find dashboard HTML. Searched: " + searchPaths.join(", "), "info");
+        return;
       }
 
       // Embed the DB directly into the HTML as base64 — no fetch, no race conditions

@@ -19,7 +19,13 @@ Context window attribution bar for the [Pi coding agent](https://github.com/mari
 ## Install
 
 ```bash
-pi install GeneGulanesJr/Pẙxis
+pi install git:github.com/GeneGulanesJr/Pyxis
+```
+
+Update with:
+
+```bash
+pi update --extensions
 ```
 
 ## Commands
