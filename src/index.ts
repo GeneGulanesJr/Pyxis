@@ -12,7 +12,7 @@ import { computeAttribution, type AttributionResult, type Usage } from "./attrib
 import { renderBar, renderInfoLine, renderLegend } from "./bar-renderer.js";
 import { formatTokens, formatCost } from "./format.js";
 import * as db from "./db.js";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
@@ -227,8 +227,12 @@ export default function (pi: ExtensionAPI) {
       db.flushDb();
 
       const dbPath = db.getDbPath();
+      if (!existsSync(dbPath)) {
+        ctx.ui.notify("No PiStats data yet — start a session first.", "info");
+        return;
+      }
 
-      const extDir = import.meta.dirname || __dirname;
+      const extDir = import.meta.dirname;
       const searchPaths = [
         join(extDir, "..", "dashboard", "index.html"),
         join(extDir, "dashboard", "index.html"),

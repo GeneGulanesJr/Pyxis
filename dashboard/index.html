@@ -536,7 +536,7 @@ function resetDb(){db=null;sessionsData=[];destroyCharts();document.getElementBy
 async function loadDb(file){
   try{
     const buf=await file.arrayBuffer();
-    const SQL=await initSqlJs();
+    const SQL=await initSqlJs({locateFile:function(f){return 'https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/'+f;}});
     db=new SQL.Database(new Uint8Array(buf));
     const t=query("SELECT count(*) as cnt FROM sqlite_master WHERE type='table'");
     if(!t[0]||t[0].cnt<3){toast('Invalid pistats.db',true);return;}
