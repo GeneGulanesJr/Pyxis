@@ -252,20 +252,10 @@ export default function (pi: ExtensionAPI) {
       const dbBuffer = readFileSync(dbPath);
       const dbBase64 = dbBuffer.toString('base64');
 
-      // Strip CDN sql.js/chart.js scripts — we'll serve locally to avoid version mismatches
-      html = html.replace(/<script src="https:\/\/cdn\.jsdelivr\.net\/npm\/sql\.js[^>]*><\/script>/, '');
-
-      // Pre-load local sql.js assets (matching versions)
-      const sqlDistDir = join(import.meta.dirname || __dirname, 'node_modules', 'sql.js', 'dist');
-      const sqlJs = readFileSync(join(sqlDistDir, 'sql-wasm.js'));
-      const wasmBinary = readFileSync(join(sqlDistDir, 'sql-wasm.wasm'));
-
-      // Bridge script: load sql.js from our server, then decode embedded DB
       const bridgeScript = `
-<script src="/__assets__/sql-wasm.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded', function() {
-  initSqlJs({ locateFile: function(f) { return '/__assets__/' + f; } }).then(function(SQL) {
+  initSqlJs({ locateFile: function(f) { return 'https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/' + f; } }).then(function(SQL) {
     try {
       var raw = atob('${dbBase64}');
       var buf = new Uint8Array(raw.length);
@@ -285,19 +275,9 @@ window.addEventListener('DOMContentLoaded', function() {
         try { dashboardServer.close(); } catch {}
       }
 
-      // Create HTTP server — serve HTML + sql.js assets
-      dashboardServer = createServer((req, res) => {
-        const url = req.url || '/';
-        if (url.startsWith('/__assets__/sql-wasm.js')) {
-          res.writeHead(200, { 'Content-Type': 'application/javascript', 'Content-Length': sqlJs.length });
-          res.end(sqlJs);
-        } else if (url.startsWith('/__assets__/') && url.endsWith('.wasm')) {
-          res.writeHead(200, { 'Content-Type': 'application/wasm', 'Content-Length': wasmBinary.length });
-          res.end(wasmBinary);
-        } else {
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html) });
-          res.end(html);
-        }
+      dashboardServer = createServer((_req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
       });
 
       // Find available port
