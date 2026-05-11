@@ -7,98 +7,118 @@ import initSqlJs, { type Database } from "sql.js";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import type { AttributionResult } from "./attributor.js";
 
 const DB_PATH = join(homedir(), ".pi", "agent", "pistats.db");
 
+const _extDir = typeof import.meta.dirname === "string"
+  ? import.meta.dirname
+  : join(fileURLToPath(import.meta.url), "..");
+
 let db: Database | null = null;
 let dbReady = false;
+let dbInitError: string | null = null;
+
+export function getDbInitError(): string | null {
+  return dbInitError;
+}
+
+function locateWasmFile(f: string): string {
+  const candidates = [
+    join(_extDir, "node_modules", "sql.js", "dist", f),
+    join(_extDir, "..", "node_modules", "sql.js", "dist", f),
+  ];
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return `https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/${f}`;
+}
 
 async function getDb(): Promise<Database> {
   if (db && dbReady) return db;
 
-  const SQL = await initSqlJs({
-    locateFile: (f: string) => {
-      const localPath = join(import.meta.dirname, '..', 'node_modules', 'sql.js', 'dist', f);
-      if (existsSync(localPath)) return localPath;
-      return `https://cdn.jsdelivr.net/npm/sql.js@1.11.0/dist/${f}`;
-    },
-  });
-  const dbDir = join(homedir(), ".pi", "agent");
-
-  if (existsSync(DB_PATH)) {
-    const buffer = readFileSync(DB_PATH);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
-  }
-
-  // Create tables if they don't exist
-  db.run(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      model TEXT NOT NULL,
-      context_window INTEGER NOT NULL,
-      cwd TEXT,
-      started_at TEXT NOT NULL,
-      ended_at TEXT
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS turns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL REFERENCES sessions(id),
-      turn_index INTEGER NOT NULL,
-      entry_id TEXT,
-      input_tokens INTEGER NOT NULL DEFAULT 0,
-      output_tokens INTEGER NOT NULL DEFAULT 0,
-      cache_read INTEGER NOT NULL DEFAULT 0,
-      cache_write INTEGER NOT NULL DEFAULT 0,
-      cost_total REAL NOT NULL DEFAULT 0,
-      model TEXT NOT NULL DEFAULT 'unknown',
-      timestamp TEXT NOT NULL,
-      user_content TEXT,
-      assistant_content TEXT,
-      UNIQUE(session_id, turn_index)
-    );
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS segment_breakdown (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      turn_id INTEGER NOT NULL REFERENCES turns(id),
-      segment TEXT NOT NULL,
-      tokens INTEGER NOT NULL DEFAULT 0,
-      percentage REAL NOT NULL DEFAULT 0,
-      UNIQUE(turn_id, segment)
-    );
-  `);
-
-  db.run(`CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_segments_turn ON segment_breakdown(turn_id)`);
-  db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(started_at)`);
-
-  // Migrate: add content columns if they don't exist (existing DBs)
   try {
-    const cols = db.exec("PRAGMA table_info(turns)");
-    const colNames = cols[0]?.values?.map((r: any) => r[1]) || [];
-    if (!colNames.includes('user_content')) {
-      db.run('ALTER TABLE turns ADD COLUMN user_content TEXT');
-    }
-    if (!colNames.includes('assistant_content')) {
-      db.run('ALTER TABLE turns ADD COLUMN assistant_content TEXT');
-    }
-    if (!colNames.includes('model')) {
-      db.run("ALTER TABLE turns ADD COLUMN model TEXT NOT NULL DEFAULT 'unknown'");
-    }
-  } catch {
-    // Table doesn't exist yet — CREATE TABLE handles it
-  }
+    const SQL = await initSqlJs({ locateFile: locateWasmFile });
+    dbInitError = null;
+    const dbDir = join(homedir(), ".pi", "agent");
 
-  saveDb();
-  dbReady = true;
-  return db;
+    if (existsSync(DB_PATH)) {
+      const buffer = readFileSync(DB_PATH);
+      db = new SQL.Database(buffer);
+    } else {
+      db = new SQL.Database();
+    }
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        model TEXT NOT NULL,
+        context_window INTEGER NOT NULL,
+        cwd TEXT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT
+      );
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS turns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        turn_index INTEGER NOT NULL,
+        entry_id TEXT,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read INTEGER NOT NULL DEFAULT 0,
+        cache_write INTEGER NOT NULL DEFAULT 0,
+        cost_total REAL NOT NULL DEFAULT 0,
+        model TEXT NOT NULL DEFAULT 'unknown',
+        timestamp TEXT NOT NULL,
+        user_content TEXT,
+        assistant_content TEXT,
+        UNIQUE(session_id, turn_index)
+      );
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS segment_breakdown (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        turn_id INTEGER NOT NULL REFERENCES turns(id),
+        segment TEXT NOT NULL,
+        tokens INTEGER NOT NULL DEFAULT 0,
+        percentage REAL NOT NULL DEFAULT 0,
+        UNIQUE(turn_id, segment)
+      );
+    `);
+
+    db.run(`CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_segments_turn ON segment_breakdown(turn_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(started_at)`);
+
+    try {
+      const cols = db.exec("PRAGMA table_info(turns)");
+      const colNames = cols[0]?.values?.map((r: any) => r[1]) || [];
+      if (!colNames.includes('user_content')) {
+        db.run('ALTER TABLE turns ADD COLUMN user_content TEXT');
+      }
+      if (!colNames.includes('assistant_content')) {
+        db.run('ALTER TABLE turns ADD COLUMN assistant_content TEXT');
+      }
+      if (!colNames.includes('model')) {
+        db.run("ALTER TABLE turns ADD COLUMN model TEXT NOT NULL DEFAULT 'unknown'");
+      }
+    } catch {
+      // Table doesn't exist yet — CREATE TABLE handles it
+    }
+
+    saveDb();
+    dbReady = true;
+    return db;
+  } catch (e) {
+    dbInitError = `PiStats DB init failed: ${(e as Error).message}. Stats will not be persisted.`;
+    console.error("[PiStats] " + dbInitError, e);
+    throw e;
+  }
 }
 
 function saveDb(): void {

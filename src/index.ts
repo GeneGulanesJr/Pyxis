@@ -14,8 +14,13 @@ import { formatTokens, formatCost } from "./format.js";
 import * as db from "./db.js";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
 import { execSync } from "node:child_process";
+
+const _extDir = typeof import.meta.dirname === "string"
+  ? import.meta.dirname
+  : join(fileURLToPath(import.meta.url), "..");
 
 const RENDER_THROTTLE_MS = 1000;
 
@@ -129,6 +134,11 @@ export default function (pi: ExtensionAPI) {
       );
     } catch (e) {
       console.error("[PiStats] Failed to record session start:", e);
+    }
+
+    const initErr = db.getDbInitError();
+    if (initErr) {
+      ctx.ui.notify(initErr, "info");
     }
 
     // Purge old content (30-day retention)
@@ -245,7 +255,7 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const extDir = import.meta.dirname;
+      const extDir = _extDir;
       const searchPaths = [
         join(extDir, "..", "dashboard", "index.html"),
         join(extDir, "dashboard", "index.html"),
@@ -280,7 +290,7 @@ window.addEventListener('DOMContentLoaded', function() {
       db = new SQL.Database(buf);
       document.getElementById('dropzone').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
-      loadPricing().then(function() { showSessionDetail(${JSON.stringify(currentSessionId)}); });
+      loadPricing().then(function() { showSessionDetail(${JSON.stringify(currentSessionId.replace(/\\/g, "/"))}); });
     } catch(e) { console.error('PiStats auto-load failed:', e); }
   });
 });
